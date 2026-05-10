@@ -1,23 +1,37 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 
 export default function Navbar() {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isAlertVisible, setIsAlertVisible] = useState(true);
+
   return (
     <>
       {/* Top Alert Bar */}
-      <div className="bg-primary text-on-primary w-full py-3 px-margin-mobile md:px-margin-desktop flex justify-between items-center z-[60] relative">
-        <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-[16px]">campaign</span>
-          <span className="font-label-caps text-[12px] uppercase tracking-widest">URGENT: NURSERY ADMISSIONS OPEN FOR 2026-27 ACADEMIC YEAR. APPLY NOW.</span>
+      {isAlertVisible && (
+        <div className="bg-primary text-on-primary w-full py-3 px-margin-mobile md:px-margin-desktop flex justify-between items-center z-[60] fixed top-0 left-0">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-[16px]">campaign</span>
+            <span className="font-label-caps text-[12px] uppercase tracking-widest truncate">URGENT: NURSERY ADMISSIONS OPEN FOR 2026-27. APPLY NOW.</span>
+          </div>
+          <button 
+            onClick={() => setIsAlertVisible(false)}
+            aria-label="Dismiss alert" 
+            className="text-on-primary/70 hover:text-on-primary transition-colors p-1 shrink-0"
+          >
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
         </div>
-        <button aria-label="Dismiss alert" className="text-on-primary/70 hover:text-on-primary transition-colors p-1">
-          <span className="material-symbols-outlined text-[18px]">close</span>
-        </button>
-      </div>
+      )}
 
       {/* Navigation Shell */}
-      <nav aria-label="Main Navigation" className="bg-surface/90 backdrop-blur-md border-b border-outline-variant/30 fixed top-[40px] left-0 w-full z-50 flex justify-between items-center px-margin-mobile md:px-margin-desktop h-24 transition-all duration-300">
+      <nav 
+        aria-label="Main Navigation" 
+        style={{ top: isAlertVisible ? '44px' : '0' }}
+        className="bg-surface/90 backdrop-blur-md border-b border-outline-variant/30 fixed left-0 w-full z-50 flex justify-between items-center px-margin-mobile md:px-margin-desktop h-24 transition-all duration-300"
+      >
         <Link className="flex items-center gap-4 group" href="/">
           <div className="w-14 h-14 relative overflow-hidden rounded-full border-2 border-primary/10 group-hover:border-primary/30 transition-all flex items-center justify-center bg-white">
             <img 
@@ -51,9 +65,45 @@ export default function Navbar() {
           <Link className="hidden md:inline-flex items-center justify-center px-8 py-3 bg-[#1a3a2a] text-white font-label-caps text-[12px] uppercase tracking-widest hover:bg-[#11261b] transition-colors duration-300" href="/admissions">
             Admissions 26-27
           </Link>
-          <button aria-label="Open menu" className="md:hidden text-primary p-2">
-            <span className="material-symbols-outlined text-[24px]">menu</span>
+          <button 
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            aria-label={isMenuOpen ? "Close menu" : "Open menu"} 
+            className="md:hidden text-primary p-2 z-[70] relative"
+          >
+            <span className="material-symbols-outlined text-[28px]">
+              {isMenuOpen ? 'close' : 'menu'}
+            </span>
           </button>
+        </div>
+
+        {/* Mobile Menu Overlay */}
+        <div className={`fixed inset-0 bg-primary z-[65] flex flex-col items-center justify-center gap-8 transition-transform duration-500 md:hidden ${
+          isMenuOpen ? "translate-x-0" : "translate-x-full"
+        }`}>
+          {[
+            { n: "About", h: "/about" },
+            { n: "Academics", h: "/academics" },
+            { n: "Admissions", h: "/admissions" },
+            { n: "Updates", h: "/news" },
+            { n: "Compliance", h: "/compliance" },
+            { n: "Contact", h: "/contact" }
+          ].map((item) => (
+            <Link 
+              key={item.n}
+              onClick={() => setIsMenuOpen(false)}
+              className="font-display-lg text-on-primary text-4xl uppercase tracking-tighter" 
+              href={item.h}
+            >
+              {item.n}
+            </Link>
+          ))}
+          <Link 
+            onClick={() => setIsMenuOpen(false)}
+            className="mt-8 px-10 py-4 bg-secondary text-primary font-label-caps text-sm uppercase tracking-widest font-bold" 
+            href="/admissions"
+          >
+            Admissions 26-27
+          </Link>
         </div>
       </nav>
     </>
