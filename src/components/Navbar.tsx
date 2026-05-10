@@ -93,8 +93,15 @@ export default function Navbar() {
         </div>
 
         {/* Mobile Menu Overlay */}
-        <div className={`fixed inset-0 bg-[#0f172a] z-[75] flex flex-col p-10 pt-32 transition-all duration-500 md:hidden ${
-          isMenuOpen ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-10 pointer-events-none"
+        <div 
+          onClick={() => setIsMenuOpen(false)}
+          className={`fixed inset-0 bg-black/40 backdrop-blur-md z-[70] transition-opacity duration-500 md:hidden ${
+            isMenuOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
+        />
+
+        <div className={`fixed top-0 right-0 h-screen w-[85%] max-w-[400px] bg-[#0f172a] z-[75] flex flex-col p-10 pt-32 transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) md:hidden ${
+          isMenuOpen ? "translate-x-0 shadow-[-20px_0_60px_-15px_rgba(0,0,0,0.5)]" : "translate-x-full"
         }`}>
           <div className="flex flex-col gap-6">
             {[
@@ -108,8 +115,8 @@ export default function Navbar() {
               <Link 
                 key={item.n}
                 onClick={() => setIsMenuOpen(false)}
-                style={{ transitionDelay: `${idx * 50}ms` }}
-                className={`group flex flex-col transition-all duration-500 ${isMenuOpen ? "translate-x-0 opacity-100" : "-translate-x-10 opacity-0"}`}
+                style={{ transitionDelay: `${isMenuOpen ? 150 + (idx * 50) : 0}ms` }}
+                className={`group flex flex-col transition-all duration-500 ${isMenuOpen ? "translate-x-0 opacity-100" : "translate-x-10 opacity-0"}`}
                 href={item.h}
               >
                 <span className="font-display-lg text-white text-3xl md:text-4xl uppercase tracking-tighter group-hover:text-secondary transition-colors">
@@ -122,7 +129,7 @@ export default function Navbar() {
             ))}
           </div>
           
-          <div className={`mt-auto pt-10 border-t border-white/10 transition-all duration-700 delay-300 ${isMenuOpen ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
+          <div className={`mt-auto pt-10 border-t border-white/10 transition-all duration-700 delay-500 ${isMenuOpen ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
             <Link 
               onClick={() => setIsMenuOpen(false)}
               className="w-full inline-flex items-center justify-center px-10 py-5 bg-secondary text-primary font-label-caps text-xs uppercase tracking-[0.2em] font-bold rounded-sm shadow-xl" 
