@@ -1,0 +1,21 @@
+{
+  "name": "Sarvada Modern School",
+  "short_name": "Sarvada",
+  "description": "54 years of excellence in education. Karawal Nagar, Delhi.",
+  "start_url": "/",
+  "display": standalone,
+  "background_color": "#ffffff",
+  "theme_color": "#1a1c1c",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
