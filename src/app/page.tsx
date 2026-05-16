@@ -135,12 +135,15 @@ export default function Home() {
             <div className="md:col-span-6">
               <span className="font-label-caps text-secondary uppercase tracking-[0.2em] mb-6 block">Our Philosophy</span>
               <h2 className="font-display-md text-primary mb-12 leading-tight uppercase">Nurturing Achievers,<br/>Enlightening Souls</h2>
-              <div className="space-y-8 font-body-lg text-on-surface-variant">
+              <div className="space-y-8 font-body-lg text-on-surface-variant leading-relaxed">
                 <p>
-                  Established in 1972, Sarvada Modern Secondary School has spread its branches like a banyan tree, serving humanity by enlightening students with the light of knowledge.
+                  Established in 1972, Sarvada Modern Secondary School has spread its branches like a majestic banyan tree, serving humanity by enlightening generations of students with the enduring light of knowledge.
                 </p>
                 <p>
-                  Our holistic approach ensures students excel across the spectrum, preparing them for prestigious institutions globally while keeping them rooted in our rich cultural heritage.
+                  We believe that true education transcends the confines of textbooks. Our holistic approach is meticulously designed to ensure students excel across the entire spectrum of human endeavor—from rigorous academics and innovative scientific inquiry to the vibrant expressions of art and culture.
+                </p>
+                <p>
+                  By fostering a dynamic environment of critical thinking, creativity, and moral integrity, we prepare our students not just for admission into prestigious institutions globally, but to emerge as compassionate, capable leaders of tomorrow. All while keeping them deeply rooted in our rich cultural heritage and values.
                 </p>
               </div>
             </div>
