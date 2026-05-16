@@ -6,6 +6,7 @@ import {
   addDoc, 
   deleteDoc, 
   doc, 
+  updateDoc,
   onSnapshot, 
   query, 
   orderBy,
@@ -24,7 +25,8 @@ interface Notice {
 export default function AdminDashboard() {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newNotice, setNewNotice] = useState({ title: "", category: "General", status: "Live" });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [newNotice, setNewNotice] = useState({ title: "", category: "General", status: "Live", description: "" });
   const [loading, setLoading] = useState(true);
 
   // Real-time fetch from Firestore
@@ -41,18 +43,37 @@ export default function AdminDashboard() {
     return () => unsubscribe();
   }, []);
 
-  const handleAddNotice = async (e: React.FormEvent) => {
+  const handleSaveNotice = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await addDoc(collection(db, "notices"), {
-        ...newNotice,
-        date: serverTimestamp(),
-      });
+      if (editingId) {
+        await updateDoc(doc(db, "notices", editingId), {
+          ...newNotice,
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        await addDoc(collection(db, "notices"), {
+          ...newNotice,
+          date: serverTimestamp(),
+        });
+      }
       setIsModalOpen(false);
-      setNewNotice({ title: "", category: "General", status: "Live" });
+      setEditingId(null);
+      setNewNotice({ title: "", category: "General", status: "Live", description: "" });
     } catch (error) {
-      console.error("Error adding notice:", error);
+      console.error("Error saving notice:", error);
     }
+  };
+
+  const openEditModal = (notice: Notice) => {
+    setNewNotice({
+      title: notice.title,
+      category: notice.category,
+      status: notice.status,
+      description: notice.description || ""
+    });
+    setEditingId(notice.id);
+    setIsModalOpen(true);
   };
 
   const handleDeleteNotice = async (id: string) => {
@@ -75,7 +96,11 @@ export default function AdminDashboard() {
           />
         </div>
         <button 
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => {
+            setEditingId(null);
+            setNewNotice({ title: "", category: "General", status: "Live", description: "" });
+            setIsModalOpen(true);
+          }}
           className="flex items-center space-x-2 bg-primary text-on-primary px-6 py-3 rounded hover:bg-inverse-surface transition-colors shadow-sm font-body-sm w-full sm:w-auto justify-center"
         >
           <span className="material-symbols-outlined">add</span>
@@ -116,7 +141,11 @@ export default function AdminDashboard() {
                     </span>
                   </td>
                   <td className="py-4 px-6 text-right space-x-2">
-                    <button className="text-on-surface-variant hover:text-primary transition-colors p-1" title="Edit">
+                    <button 
+                      onClick={() => openEditModal(notice)}
+                      className="text-on-surface-variant hover:text-primary transition-colors p-1" 
+                      title="Edit"
+                    >
                       <span className="material-symbols-outlined text-[20px]">edit</span>
                     </button>
                     <button 
@@ -138,8 +167,8 @@ export default function AdminDashboard() {
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-surface-container-lowest w-full max-w-xl p-10 shadow-2xl animate-in fade-in zoom-in duration-200">
-            <h3 className="font-display-sm text-primary mb-8">Create New Notice</h3>
-            <form onSubmit={handleAddNotice} className="space-y-6">
+            <h3 className="font-display-sm text-primary mb-8">{editingId ? 'Edit Notice' : 'Create New Notice'}</h3>
+            <form onSubmit={handleSaveNotice} className="space-y-6">
               <div className="space-y-2">
                 <label className="font-label-caps text-xs text-on-surface-variant uppercase">Notice Title</label>
                 <input
@@ -180,9 +209,20 @@ export default function AdminDashboard() {
                   </select>
                 </div>
               </div>
+              <div className="space-y-2">
+                <label className="font-label-caps text-xs text-on-surface-variant uppercase">Full Description / Content</label>
+                <textarea
+                  required
+                  rows={4}
+                  value={newNotice.description}
+                  onChange={(e) => setNewNotice({...newNotice, description: e.target.value})}
+                  className="w-full px-4 py-3 bg-surface-container border border-surface-variant focus:border-primary outline-none font-body-sm resize-y"
+                  placeholder="Enter the full circular text here..."
+                />
+              </div>
               <div className="flex gap-4 pt-6">
                 <button type="submit" className="flex-1 bg-primary text-on-primary py-4 font-label-caps uppercase tracking-widest hover:bg-inverse-surface transition-all">Save Notice</button>
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 border border-surface-variant py-4 font-label-caps uppercase tracking-widest hover:bg-surface-container transition-all">Cancel</button>
+                <button type="button" onClick={() => {setIsModalOpen(false); setEditingId(null);}} className="flex-1 border border-surface-variant py-4 font-label-caps uppercase tracking-widest hover:bg-surface-container transition-all">Cancel</button>
               </div>
             </form>
           </div>

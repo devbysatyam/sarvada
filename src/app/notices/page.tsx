@@ -17,6 +17,7 @@ export default function NoticesPage() {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState("All");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     let q = query(
@@ -111,11 +112,26 @@ export default function NoticesPage() {
                         {notice.date?.toDate ? notice.date.toDate().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Recently Added"}
                       </time>
                     </div>
-                    <h2 className="font-headline-sm text-primary mb-3 group-hover:text-secondary transition-colors cursor-pointer leading-snug">
+                    <h2 
+                      className="font-headline-sm text-primary mb-3 hover:text-secondary transition-colors cursor-pointer leading-snug"
+                      onClick={() => setExpandedId(expandedId === notice.id ? null : notice.id)}
+                    >
                       {notice.title}
                     </h2>
                     {notice.description && (
-                      <p className="font-body-md text-on-surface-variant line-clamp-2">{notice.description}</p>
+                      <div className="mt-2">
+                        <p className={`font-body-md text-on-surface-variant ${expandedId === notice.id ? 'whitespace-pre-wrap' : 'line-clamp-2'}`}>
+                          {notice.description}
+                        </p>
+                        {notice.description.length > 100 && (
+                          <button 
+                            onClick={() => setExpandedId(expandedId === notice.id ? null : notice.id)}
+                            className="text-secondary font-label-caps text-[10px] uppercase tracking-widest mt-2 hover:text-primary transition-colors"
+                          >
+                            {expandedId === notice.id ? 'Read Less' : 'Read Full Circular'}
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                   <div className="shrink-0 mt-4 md:mt-0">
