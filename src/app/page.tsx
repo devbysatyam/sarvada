@@ -34,7 +34,7 @@ export default function Home() {
           <img 
             alt="School Campus" 
             className="w-full h-full object-cover grayscale opacity-40 scale-105 animate-pulse-slow"
-            src="https://images.unsplash.com/photo-1523050853064-dbad350e0245?q=80&w=2070&auto=format&fit=crop"
+            src="/images/hero-campus.jpg"
           />
         </div>
         
@@ -134,8 +134,84 @@ export default function Home() {
                 <img 
                   alt="Student Excellence" 
                   className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700"
-                  src="https://images.unsplash.com/photo-1509062522246-3755977927d7?q=80&w=2132&auto=format&fit=crop"
+                  src="/images/academics-robotics.jpg"
                 />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      {/* Section 5: Life at Sarvada */}
+      <section className="py-section-padding px-margin-mobile md:px-margin-desktop bg-surface-container-low">
+        <div className="max-w-container-max mx-auto">
+          <div className="text-center mb-16">
+            <span className="font-label-caps text-secondary uppercase tracking-[0.2em] mb-4 block">Student Life</span>
+            <h2 className="font-display-md text-primary leading-tight uppercase">Life at Sarvada</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="aspect-square relative overflow-hidden group">
+              <img src="/images/cultural-performance.jpg" alt="Cultural Performance" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+              <div className="absolute inset-0 bg-primary/80 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-center justify-center p-6 text-center">
+                <span className="font-headline-sm text-on-primary uppercase tracking-widest">Cultural Events</span>
+              </div>
+            </div>
+            <div className="aspect-square relative overflow-hidden group">
+              <img src="/images/student-life-friends.jpg" alt="Student Friendship" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+              <div className="absolute inset-0 bg-primary/80 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-center justify-center p-6 text-center">
+                <span className="font-headline-sm text-on-primary uppercase tracking-widest">Lasting Bonds</span>
+              </div>
+            </div>
+            <div className="aspect-square relative overflow-hidden group">
+              <img src="/images/academics-robotics-class.jpg" alt="Interactive Learning" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+              <div className="absolute inset-0 bg-primary/80 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-center justify-center p-6 text-center">
+                <span className="font-headline-sm text-on-primary uppercase tracking-widest">Interactive Learning</span>
+              </div>
+            </div>
+          </div>
+          <div className="mt-12 text-center">
+            <Link href="/gallery" className="inline-block px-12 py-5 border-2 border-primary text-primary font-label-caps tracking-widest uppercase hover:bg-primary hover:text-on-primary transition-all">
+              View Full Gallery
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Section 6: Infrastructure */}
+      <section className="py-section-padding px-margin-mobile md:px-margin-desktop">
+        <div className="max-w-container-max mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
+            <div className="order-2 md:order-1 relative aspect-[4/3] bg-surface-container overflow-hidden">
+              <img 
+                alt="Modern Infrastructure" 
+                className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700"
+                src="/images/academics-computer-lab.jpg"
+              />
+            </div>
+            <div className="order-1 md:order-2">
+              <span className="font-label-caps text-secondary uppercase tracking-[0.2em] mb-6 block">World-Class Facilities</span>
+              <h2 className="font-display-md text-primary mb-8 leading-tight uppercase">Modern<br/>Infrastructure</h2>
+              <div className="space-y-6 font-body-lg text-on-surface-variant">
+                <p>
+                  Our campus is designed to provide an optimal learning environment. From high-tech computer labs to expansive play areas, every space is crafted to inspire.
+                </p>
+                <ul className="grid grid-cols-2 gap-4 mt-8">
+                  <li className="flex items-center gap-3">
+                    <div className="w-2 h-2 bg-secondary"></div>
+                    <span className="font-label-caps tracking-wider uppercase text-sm">Smart Classrooms</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <div className="w-2 h-2 bg-secondary"></div>
+                    <span className="font-label-caps tracking-wider uppercase text-sm">Computer Labs</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <div className="w-2 h-2 bg-secondary"></div>
+                    <span className="font-label-caps tracking-wider uppercase text-sm">Science Labs</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <div className="w-2 h-2 bg-secondary"></div>
+                    <span className="font-label-caps tracking-wider uppercase text-sm">Library</span>
+                  </li>
+                </ul>
               </div>
             </div>
           </div>

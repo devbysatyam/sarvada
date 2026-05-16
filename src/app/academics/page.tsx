@@ -41,6 +41,22 @@ export default function AcademicsPage() {
         </div>
       </section>
 
+      {/* Science Lab Showcase */}
+      <section className="px-margin-mobile md:px-margin-desktop py-12">
+        <div className="max-w-container-max mx-auto">
+          <div className="relative aspect-[21/9] bg-surface-container overflow-hidden rounded-lg">
+            <img 
+              alt="Advanced Science Laboratory" 
+              className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-1000"
+              src="/images/academics-lab.jpg"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-12">
+              <p className="text-white font-label-caps text-sm tracking-widest uppercase">Hands-on Learning: Our Advanced Science Laboratory</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Labs & Infrastructure Section */}
       <section className="px-margin-mobile md:px-margin-desktop py-section-padding bg-background">
         <div className="max-w-container-max mx-auto">

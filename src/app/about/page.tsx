@@ -11,7 +11,7 @@ export default function AboutPage() {
       {/* Hero Section */}
       <section className="w-full relative h-[716px] min-h-[500px] flex items-end pb-16 px-margin-mobile md:px-margin-desktop">
         <div className="absolute inset-0 z-0">
-          <img alt="Hero Background" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAFBD_iVA9I12X5ChDGqd7RKaYCq1iVS8Hld-tWsplEjtVToQIcv2YjLckt4ZcwtC3iUM3cI-C8UL7B1vcTlFzPHP02yi41chvmbds8BrjYnnzYVBOrGO6Up-vRqA3z9duejvQyuyKSX3R0IIy82hj_W1hBJpUZyACizQi5Mn0pUplRU4sJSXqHVR6BsJl3sjUrIAMnWBuuJQFC_8gQ4UDMOHyiO6DU19yHMMHUKDxsmBgYfeLoge8z3HNjdcK_ULpFvCGfeOzpweRe"/>
+          <img alt="Hero Background" className="w-full h-full object-cover" src="/images/cultural-celebration.jpg"/>
           <div className="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/40 to-transparent"></div>
         </div>
         <div className="relative z-10 max-w-4xl text-on-primary">
