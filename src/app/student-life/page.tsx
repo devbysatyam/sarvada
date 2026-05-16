@@ -22,7 +22,7 @@ export default function StudentLifePage() {
           </div>
           <div className="md:w-1/2">
             <div className="aspect-[4/3] rounded overflow-hidden shadow-2xl">
-              <img alt="Students in school uniform" className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBR6PBVPjpKS8FV6TiVk_p3zvgPWeOOY8P1OaMz1FnOieNHt5qeK8LcjaS8R-y8Ihbi0Y0zpfQXIKGAy8r5iLtG9UGN9ifIowIJRV51rVyo0q8Gy6P6ol9Gv9LceZaOnnoWtvUhoHHvfNX427ydFe8Krwqmtz9fZ0n8t_DUZ_qUL72OexCZdER2rnrZ5Q5wCk94ArRfwFJLlXE88qavUhTv39rV52XDwJ-X_xQmVPb8YNjku-sTayUo4x9w_T2T2jRYampxnOuu9NGx"/>
+              <img alt="Students in school uniform" className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700" src="/images/student-life-friends.jpg"/>
             </div>
           </div>
         </div>
@@ -145,7 +145,7 @@ export default function StudentLifePage() {
           </div>
           <div className="lg:col-span-5">
             <div className="aspect-[3/4] overflow-hidden rounded shadow-xl">
-              <img alt="School Festival" className="w-full h-full object-cover grayscale" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAUOqVl8ykkBkvGCXRGlPy5EANSR7oj6BR2sbyZ2Uwilx6l_8X8lBCTMMkAfiRopoYq73I_-LHXAA_QLfZVjy5bLVXHUCUUNhCvJC6WJfVLOlNhj4mVGWDWCvUTjTLKO7kRMsus1U3cz78yaE-4XZr5hr3jkbgdZd_j2I1sQCy84v1EleE7BI_CeLqg2jlF9lDFv6PN5-zV5H8lVqZcJMjVZENH-PLu6NgNe08gYqCLOskFKlJBDpPQ8FdR1EsaKphEzrcbMxpAT6Ni"/>
+              <img alt="School Festival" className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700" src="/images/cultural-performance.jpg"/>
             </div>
           </div>
         </div>

@@ -17,6 +17,22 @@ export default function GalleryPage() {
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState("All");
 
+  const localGalleryItems: GalleryItem[] = [
+    { id: '1', url: '/images/cultural-performance.jpg', caption: 'Annual Day Performance', category: 'Cultural' },
+    { id: '2', url: '/images/cultural-fancy-dress.jpg', caption: 'Fancy Dress Competition', category: 'Cultural' },
+    { id: '3', url: '/images/student-life-birthday.jpg', caption: 'Student Birthday Celebration', category: 'Celebrations' },
+    { id: '4', url: '/images/student-life-friends.jpg', caption: 'Student Bonds', category: 'Academic' },
+    { id: '5', url: '/images/infrastructure-building.jpg', caption: 'Main Building', category: 'Infrastructure' },
+    { id: '6', url: '/images/infrastructure-staircase.jpg', caption: 'Colorful Hallways', category: 'Infrastructure' },
+    { id: '7', url: '/images/academics-computer-lab.jpg', caption: 'Computer Lab', category: 'Academic' },
+    { id: '8', url: '/images/infrastructure-reception.jpg', caption: 'School Reception', category: 'Infrastructure' },
+    { id: '9', url: '/images/academics-robotics-class.jpg', caption: 'Robotics Workshop', category: 'Academic' },
+    { id: '10', url: '/images/academics-robotics-close.jpg', caption: 'Hands-on Learning', category: 'Academic' },
+    { id: '11', url: '/images/academics-lab.jpg', caption: 'Science Laboratory', category: 'Academic' },
+    { id: '12', url: '/images/cultural-celebration.jpg', caption: 'Festival Celebrations', category: 'Celebrations' },
+    { id: '13', url: '/images/hero-campus.jpg', caption: 'School Campus', category: 'Infrastructure' }
+  ];
+
   useEffect(() => {
     let q = query(collection(db, "gallery"), orderBy("createdAt", "desc"));
     
@@ -29,11 +45,18 @@ export default function GalleryPage() {
     }
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({
+      const firebaseData = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       })) as GalleryItem[];
-      setItems(data);
+      
+      // Merge local authentic images with any firebase data
+      let filteredLocal = localGalleryItems;
+      if (activeCategory !== "All") {
+        filteredLocal = localGalleryItems.filter(item => item.category === activeCategory);
+      }
+      
+      setItems([...firebaseData, ...filteredLocal]);
       setLoading(false);
     });
 
