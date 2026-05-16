@@ -14,6 +14,21 @@ export default function Home() {
     isActive: true
   });
   const [loading, setLoading] = useState(true);
+  const [currentPhilImage, setCurrentPhilImage] = useState(0);
+
+  const philosophyImages = [
+    "/images/academics-robotics.jpg",
+    "/images/cultural-performance.jpg",
+    "/images/student-life-friends.jpg",
+    "/images/academics-lab.jpg"
+  ];
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentPhilImage((prev) => (prev + 1) % philosophyImages.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, "settings", "admissions"), (snapshot) => {
@@ -130,12 +145,15 @@ export default function Home() {
               </div>
             </div>
             <div className="md:col-span-5 md:col-start-8 mt-12 md:mt-0">
-              <div className="relative aspect-[4/5] bg-surface-container overflow-hidden">
-                <img 
-                  alt="Student Excellence" 
-                  className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700"
-                  src="/images/academics-robotics.jpg"
-                />
+              <div className="relative aspect-[4/5] bg-surface-container overflow-hidden group">
+                {philosophyImages.map((src, index) => (
+                  <img 
+                    key={src}
+                    alt="Student Excellence" 
+                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out grayscale group-hover:grayscale-0 ${index === currentPhilImage ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+                    src={src}
+                  />
+                ))}
               </div>
             </div>
           </div>
