@@ -53,6 +53,7 @@ export default function AdminLayout({
     { label: "Compliance", icon: "gavel", href: "/admin/compliance" },
     { label: "Staff", icon: "group", href: "/admin/staff" },
     { label: "Results", icon: "assignment", href: "/admin/results" },
+    { label: "Parent Feedback", icon: "rate_review", href: "/admin/feedback" },
   ];
 
   return (

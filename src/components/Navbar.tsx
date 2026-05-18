@@ -110,6 +110,7 @@ export default function Navbar() {
               { n: "Admissions", h: "/admissions", s: "Join the 2026-27 Session" },
               { n: "News & Updates", h: "/news", s: "Latest from Sarvada" },
               { n: "Compliance", h: "/compliance", s: "Official Disclosures" },
+              { n: "Parent Feedback", h: "/feedback", s: "Share your experience" },
               { n: "Contact", h: "/contact", s: "Get in touch with us" }
             ].map((item, idx) => (
               <Link 

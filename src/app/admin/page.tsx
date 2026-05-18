@@ -20,6 +20,7 @@ interface Notice {
   category: string;
   date: any;
   status: string;
+  description?: string;
 }
 
 export default function AdminDashboard() {

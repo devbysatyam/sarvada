@@ -52,6 +52,7 @@ export default function Footer() {
             <li><Link className="font-body-md text-[16px] text-primary hover:text-on-surface-variant transition-colors" href="/compliance">Compliance</Link></li>
             <li><Link className="font-body-md text-[16px] text-primary hover:text-on-surface-variant transition-colors" href="/trust">Trust & Society</Link></li>
             <li><Link className="font-body-md text-[16px] text-primary hover:text-on-surface-variant transition-colors" href="/notices">Notice Board</Link></li>
+            <li><Link className="font-body-md text-[16px] text-primary hover:text-on-surface-variant transition-colors" href="/feedback">Parent Feedback</Link></li>
             <li><Link className="font-body-md text-[16px] text-primary hover:text-on-surface-variant transition-colors" href="/admin">Staff Login</Link></li>
           </ul>
         </div>
