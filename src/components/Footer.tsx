@@ -38,6 +38,7 @@ export default function Footer() {
             <li><Link className="font-body-md text-[16px] text-primary hover:text-on-surface-variant transition-colors" href="/about">About</Link></li>
             <li><Link className="font-body-md text-[16px] text-primary hover:text-on-surface-variant transition-colors" href="/academics">Academics</Link></li>
             <li><Link className="font-body-md text-[16px] text-primary hover:text-on-surface-variant transition-colors" href="/admissions">Admissions</Link></li>
+            <li><Link className="font-body-md text-[16px] text-primary hover:text-on-surface-variant transition-colors" href="/support">Support Us</Link></li>
             <li><Link className="font-body-md text-[16px] text-primary hover:text-on-surface-variant transition-colors" href="/student-life">Student Life</Link></li>
             <li><Link className="font-body-md text-[16px] text-primary hover:text-on-surface-variant transition-colors" href="/faculty">Faculty</Link></li>
             <li><Link className="font-body-md text-[16px] text-primary hover:text-on-surface-variant transition-colors" href="/gallery">Gallery</Link></li>
@@ -65,7 +66,7 @@ export default function Footer() {
             <p className="pt-4 flex flex-col gap-1">
               <a className="hover:text-on-surface-variant transition-colors block font-medium" href="tel:09999439422">099994 39422</a>
             </p>
-            <p><a className="hover:text-on-surface-variant transition-colors block" href="mailto:sarvada@ymail.com">sarvada@ymail.com</a></p>
+            <p><a className="hover:text-on-surface-variant transition-colors block" href="mailto:manager.sarvada@gmail.com">manager.sarvada@gmail.com</a></p>
           </address>
         </div>
         
