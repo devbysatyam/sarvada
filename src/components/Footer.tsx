@@ -38,7 +38,6 @@ export default function Footer() {
             <li><Link className="font-body-md text-[16px] text-primary hover:text-on-surface-variant transition-colors" href="/about">About</Link></li>
             <li><Link className="font-body-md text-[16px] text-primary hover:text-on-surface-variant transition-colors" href="/academics">Academics</Link></li>
             <li><Link className="font-body-md text-[16px] text-primary hover:text-on-surface-variant transition-colors" href="/admissions">Admissions</Link></li>
-            <li><Link className="font-body-md text-[16px] text-primary hover:text-on-surface-variant transition-colors" href="/support">Support Us</Link></li>
             <li><Link className="font-body-md text-[16px] text-primary hover:text-on-surface-variant transition-colors" href="/student-life">Student Life</Link></li>
             <li><Link className="font-body-md text-[16px] text-primary hover:text-on-surface-variant transition-colors" href="/faculty">Faculty</Link></li>
             <li><Link className="font-body-md text-[16px] text-primary hover:text-on-surface-variant transition-colors" href="/gallery">Gallery</Link></li>

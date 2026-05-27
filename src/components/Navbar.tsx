@@ -69,7 +69,6 @@ export default function Navbar() {
             { n: "Academics", h: "/academics" },
             { n: "Admissions", h: "/admissions" },
             { n: "Updates", h: "/news" },
-            { n: "Support Us", h: "/support" },
             { n: "Compliance", h: "/compliance" },
             { n: "Contact", h: "/contact" }
           ].map(link => (
@@ -110,7 +109,6 @@ export default function Navbar() {
               { n: "Academics", h: "/academics", s: "Curriculum & Excellence" },
               { n: "Admissions", h: "/admissions", s: "Join the 2026-27 Session" },
               { n: "News & Updates", h: "/news", s: "Latest from Sarvada" },
-              { n: "Support Us", h: "/support", s: "Partner & Endowment Fund" },
               { n: "Compliance", h: "/compliance", s: "Official Disclosures" },
               { n: "Parent Feedback", h: "/feedback", s: "Share your experience" },
               { n: "Contact", h: "/contact", s: "Get in touch with us" }

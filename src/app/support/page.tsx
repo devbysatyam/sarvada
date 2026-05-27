@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
 export const metadata = {
   title: "Support Us & Partnership Opportunities | Sarvada Modern School",
@@ -6,6 +7,8 @@ export const metadata = {
 };
 
 export default function SupportPage() {
+  notFound();
+
   return (
     <main className="bg-surface">
       {/* Page Hero Header */}
