@@ -48,6 +48,8 @@ export default function AdminLayout({
   const navItems = [
     { label: "Notice Board", icon: "dashboard", href: "/admin", fill: true },
     { label: "News & Events", icon: "event", href: "/admin/news" },
+    { label: "Timetable", icon: "schedule", href: "/admin/timetable" },
+    { label: "Calendar", icon: "calendar_month", href: "/admin/calendar" },
     { label: "Gallery", icon: "collections", href: "/admin/gallery" },
     { label: "Admissions", icon: "school", href: "/admin/admissions" },
     { label: "Compliance", icon: "gavel", href: "/admin/compliance" },
