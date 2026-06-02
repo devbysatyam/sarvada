@@ -68,7 +68,6 @@ export default function Navbar() {
             { n: "About", h: "/about" },
             { n: "Academics", h: "/academics" },
             { n: "Admissions", h: "/admissions" },
-            { n: "Timetable", h: "/timetable" },
             { n: "Updates", h: "/news" },
             { n: "Compliance", h: "/compliance" },
             { n: "Contact", h: "/contact" }
@@ -109,7 +108,6 @@ export default function Navbar() {
               { n: "About Us", h: "/about", s: "Our 54-year legacy" },
               { n: "Academics", h: "/academics", s: "Curriculum & Excellence" },
               { n: "Admissions", h: "/admissions", s: "Join the 2026-27 Session" },
-              { n: "Timetable", h: "/timetable", s: "Class-wise weekly schedule" },
               { n: "News & Updates", h: "/news", s: "Latest from Sarvada" },
               { n: "Compliance", h: "/compliance", s: "Official Disclosures" },
               { n: "Parent Feedback", h: "/feedback", s: "Share your experience" },
