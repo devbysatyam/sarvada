@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import {
   collection,
   addDoc,
+  updateDoc,
   deleteDoc,
   doc,
   onSnapshot,
@@ -50,6 +51,7 @@ export default function AdminCalendar() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [newEvent, setNewEvent] = useState({
     title: "",
     date: "",
@@ -57,6 +59,24 @@ export default function AdminCalendar() {
     category: "Holiday",
     description: "",
   });
+
+  const openAddModal = () => {
+    setEditingId(null);
+    setNewEvent({ title: "", date: "", endDate: "", category: "Holiday", description: "" });
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (evt: CalendarEvent) => {
+    setEditingId(evt.id);
+    setNewEvent({
+      title: evt.title,
+      date: evt.date,
+      endDate: evt.endDate || "",
+      category: evt.category,
+      description: evt.description || "",
+    });
+    setIsModalOpen(true);
+  };
 
   useEffect(() => {
     const q = query(collection(db, "calendar"), orderBy("date", "asc"));
@@ -71,19 +91,24 @@ export default function AdminCalendar() {
     return () => unsub();
   }, []);
 
-  const handleAdd = async (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newEvent.title.trim() || !newEvent.date) return;
-    await addDoc(collection(db, "calendar"), {
+    const payload = {
       title: newEvent.title.trim(),
       date: newEvent.date,
       endDate: newEvent.endDate || "",
       month: getMonthFromDate(newEvent.date),
       category: newEvent.category,
       description: newEvent.description.trim(),
-      createdAt: serverTimestamp(),
-    });
+    };
+    if (editingId) {
+      await updateDoc(doc(db, "calendar", editingId), { ...payload, updatedAt: serverTimestamp() });
+    } else {
+      await addDoc(collection(db, "calendar"), { ...payload, createdAt: serverTimestamp() });
+    }
     setIsModalOpen(false);
+    setEditingId(null);
     setNewEvent({ title: "", date: "", endDate: "", category: "Holiday", description: "" });
   };
 
@@ -108,7 +133,7 @@ export default function AdminCalendar() {
           </div>
         </div>
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={openAddModal}
           className="flex items-center space-x-2 bg-primary text-on-primary px-8 py-4 rounded hover:bg-secondary transition-all shadow-lg font-label-caps uppercase tracking-widest text-xs"
         >
           <span className="material-symbols-outlined">add</span>
@@ -187,14 +212,23 @@ export default function AdminCalendar() {
                     </p>
                   )}
                 </div>
-                {/* Delete */}
-                <button
-                  onClick={() => handleDelete(evt.id)}
-                  title="Delete"
-                  className="text-on-surface-variant hover:text-error transition-colors p-3 border border-surface-variant hover:bg-error-container/10 opacity-0 group-hover:opacity-100"
-                >
-                  <span className="material-symbols-outlined text-[20px]">delete</span>
-                </button>
+                {/* Edit & Delete */}
+                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => openEditModal(evt)}
+                    title="Edit"
+                    className="text-on-surface-variant hover:text-primary transition-colors p-3 border border-surface-variant hover:bg-surface-container"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">edit</span>
+                  </button>
+                  <button
+                    onClick={() => handleDelete(evt.id)}
+                    title="Delete"
+                    className="text-on-surface-variant hover:text-error transition-colors p-3 border border-surface-variant hover:bg-error-container/10"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">delete</span>
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -207,9 +241,9 @@ export default function AdminCalendar() {
           <div className="bg-surface-container-lowest w-full max-w-2xl p-10 shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1 bg-primary"></div>
             <h3 className="font-display-sm text-primary mb-8 uppercase tracking-widest text-xl">
-              Add Calendar Entry
+              {editingId ? "Edit Calendar Entry" : "Add Calendar Entry"}
             </h3>
-            <form onSubmit={handleAdd} className="space-y-6">
+            <form onSubmit={handleSave} className="space-y-6">
               <div className="space-y-2">
                 <label className="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-widest">
                   Title
@@ -285,11 +319,11 @@ export default function AdminCalendar() {
                   type="submit"
                   className="flex-1 bg-primary text-on-primary py-5 font-label-caps uppercase tracking-widest hover:bg-secondary transition-all shadow-md"
                 >
-                  Add Entry
+                  {editingId ? "Update Entry" : "Add Entry"}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => { setIsModalOpen(false); setEditingId(null); }}
                   className="flex-1 border border-surface-variant py-5 font-label-caps uppercase tracking-widest hover:bg-surface-container transition-all"
                 >
                   Cancel
