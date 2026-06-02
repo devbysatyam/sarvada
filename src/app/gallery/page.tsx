@@ -63,7 +63,7 @@ export default function GalleryPage() {
     return () => unsubscribe();
   }, [activeCategory]);
 
-  const categories = ["All", "Infrastructure", "Academic", "Cultural", "Sports", "Celebrations"];
+  const categories = ["All", "Infrastructure", "Academic", "Cultural", "Sports", "Celebrations", "Technology", "Workshop", "Field Trips", "Laboratory", "Assembly"];
 
   return (
     <main className="flex-grow">

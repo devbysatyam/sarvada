@@ -11,6 +11,7 @@ interface NewsItem {
   description: string;
   eventDate: string;
   category: string;
+  imageUrl?: string;
   createdAt: any;
 }
 
@@ -27,7 +28,7 @@ export default function NewsPage() {
     });
 
     // Fetch Latest Notices
-    const noticesQ = query(collection(db, "notices"), orderBy("createdAt", "desc"), limit(4));
+    const noticesQ = query(collection(db, "notices"), orderBy("date", "desc"), limit(4));
     const unsubNotices = onSnapshot(noticesQ, (snapshot) => {
       setNotices(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
@@ -60,7 +61,13 @@ export default function NewsPage() {
         ) : (
           <div className="columns-1 md:columns-2 lg:columns-3 gap-10 space-y-10">
             {news.map((item, index) => (
-              <article key={item.id} className={`break-inside-avoid bg-surface-container-lowest border border-surface-variant p-8 group hover:border-primary transition-all shadow-sm ${index === 0 ? 'md:col-span-2' : ''}`}>
+              <article key={item.id} className={`break-inside-avoid bg-surface-container-lowest border border-surface-variant group hover:border-primary transition-all shadow-sm ${index === 0 ? 'md:col-span-2' : ''} overflow-hidden`}>
+                {item.imageUrl && (
+                  <div className="w-full h-48 bg-surface-container overflow-hidden">
+                    <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  </div>
+                )}
+                <div className="p-8">
                 <div className="flex items-center gap-4 mb-6">
                   <span className="font-label-caps text-[10px] text-secondary uppercase tracking-widest border border-secondary/30 px-2 py-0.5">{item.category}</span>
                   <span className="font-body-sm text-on-surface-variant text-[10px] uppercase tracking-widest">
@@ -75,6 +82,7 @@ export default function NewsPage() {
                     {item.eventDate}
                   </div>
                 )}
+                </div>
               </article>
             ))}
           </div>

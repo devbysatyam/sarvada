@@ -9,6 +9,8 @@ interface ResultItem {
   title: string;
   session: string;
   category: string;
+  className?: string;
+  description?: string;
   link: string;
 }
 
@@ -69,7 +71,10 @@ export default function ResultsPage() {
                     <tr key={res.id} className="hover:bg-surface-container-lowest transition-colors group">
                       <td className="py-6 px-6">
                         <p className="font-bold text-primary uppercase tracking-wider">{res.title}</p>
-                        <p className="text-[10px] text-secondary font-label-caps uppercase tracking-widest mt-1">{res.category}</p>
+                        <p className="text-[10px] text-secondary font-label-caps uppercase tracking-widest mt-1">
+                          {res.category}{res.className ? ` · ${res.className}` : ''}
+                        </p>
+                        {res.description && <p className="text-xs text-on-surface-variant mt-1 line-clamp-1">{res.description}</p>}
                       </td>
                       <td className="py-6 px-6 text-center text-on-surface-variant font-medium">{res.session}</td>
                       <td className="py-6 px-6 text-right">

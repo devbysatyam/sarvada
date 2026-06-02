@@ -9,6 +9,9 @@ interface StaffMember {
   name: string;
   designation: string;
   department: string;
+  qualification?: string;
+  subject?: string;
+  experience?: string;
   imageUrl: string;
 }
 
@@ -41,7 +44,7 @@ export default function FacultyPage() {
     return () => unsubscribe();
   }, [activeDepartment]);
 
-  const departments = ["All", "Leadership", "Academic", "Administration", "Sports", "Arts & Culture"];
+  const departments = ["All", "Leadership", "Academic", "Administration", "Sports", "Arts & Culture", "Science", "Mathematics", "Languages", "Computer", "Primary", "Pre-Primary"];
 
   const filteredStaff = staff.filter(member => 
     member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -111,6 +114,8 @@ export default function FacultyPage() {
             <h4 className="font-headline-sm text-primary mb-2 line-clamp-1">{member.name}</h4>
             <p className="font-label-caps text-[10px] text-secondary uppercase tracking-widest mb-2 font-bold">{member.designation}</p>
             <p className="font-body-sm text-on-surface-variant uppercase text-[10px] tracking-widest">{member.department}</p>
+            {member.subject && <p className="font-body-sm text-on-surface-variant text-[10px] mt-1">Subject: {member.subject}</p>}
+            {member.qualification && <p className="font-body-sm text-on-surface-variant text-[10px] mt-0.5">{member.qualification}</p>}
             
             <div className="w-full border-t border-surface-variant mt-8 pt-6 flex justify-center items-center">
               <a aria-label={`Email ${member.name}`} className="text-on-surface-variant hover:text-primary transition-colors" href="#">

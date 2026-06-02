@@ -8,6 +8,8 @@ interface ComplianceDoc {
   id: string;
   title: string;
   link: string;
+  category?: string;
+  description?: string;
   updatedAt: any;
 }
 
@@ -87,9 +89,17 @@ export default function CompliancePage() {
                     </div>
                     <div>
                       <h4 className="font-headline-sm text-primary group-hover:text-secondary transition-colors uppercase text-sm tracking-wider">{docItem.title}</h4>
-                      <p className="font-body-sm text-on-surface-variant text-[10px] uppercase tracking-widest mt-1">
-                        Updated: {docItem.updatedAt?.toDate ? docItem.updatedAt.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recently'}
-                      </p>
+                      <div className="flex items-center gap-3 mt-1">
+                        {docItem.category && (
+                          <span className="font-label-caps text-[9px] text-secondary uppercase tracking-widest border border-secondary/20 px-2 py-0.5">{docItem.category}</span>
+                        )}
+                        <p className="font-body-sm text-on-surface-variant text-[10px] uppercase tracking-widest">
+                          Updated: {docItem.updatedAt?.toDate ? docItem.updatedAt.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recently'}
+                        </p>
+                      </div>
+                      {docItem.description && (
+                        <p className="font-body-sm text-on-surface-variant text-xs mt-1 line-clamp-1">{docItem.description}</p>
+                      )}
                     </div>
                   </div>
                   <a 
