@@ -75,7 +75,7 @@ export default function NewsPage() {
                   </span>
                 </div>
                 <h2 className="font-headline-sm text-primary mb-4 group-hover:text-secondary transition-colors uppercase leading-tight">{item.title}</h2>
-                <p className="font-body-md text-on-surface-variant line-clamp-4 leading-relaxed mb-6">{item.description}</p>
+                <div className="font-body-md text-on-surface-variant line-clamp-4 leading-relaxed mb-6 rich-content" dangerouslySetInnerHTML={{ __html: item.description }} />
                 {item.eventDate && (
                   <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-widest">
                     <span className="material-symbols-outlined text-[18px]">calendar_today</span>

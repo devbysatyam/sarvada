@@ -120,9 +120,10 @@ export default function NoticesPage() {
                     </h2>
                     {notice.description && (
                       <div className="mt-2">
-                        <p className={`font-body-md text-on-surface-variant ${expandedId === notice.id ? 'whitespace-pre-wrap' : 'line-clamp-2'}`}>
-                          {notice.description}
-                        </p>
+                        <div
+                          className={`font-body-md text-on-surface-variant rich-content ${expandedId === notice.id ? '' : 'line-clamp-2'}`}
+                          dangerouslySetInnerHTML={{ __html: notice.description }}
+                        />
                         {notice.description.length > 100 && (
                           <button 
                             onClick={() => setExpandedId(expandedId === notice.id ? null : notice.id)}
