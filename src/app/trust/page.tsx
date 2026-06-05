@@ -1,8 +1,16 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Trust & Society Information | Sarvada Modern School",
-  description: "Learn about the Sarvada Educational Society, the foundational bedrock of Sarvada Modern School.",
+  title: "Trust & Society Information | Sarvada Educational Society",
+  description: "Learn about the Sarvada Educational Society (Est. 1990, Reg. S-21500/90), the foundational bedrock governing Sarvada Modern School. Board of Trustees, registration details, and institutional philosophy.",
+  keywords: ["Sarvada Educational Society", "school trust Delhi", "Sarvada Shiksha Samiti registration"],
+  alternates: { canonical: "/trust" },
+  openGraph: {
+    title: "Trust & Society | Sarvada Modern School",
+    description: "The foundational educational society governing Sarvada Modern School since 1990.",
+    url: "https://sarvadamodernschool.com/trust",
+    type: "website",
+  },
 };
 
 export default function TrustPage() {

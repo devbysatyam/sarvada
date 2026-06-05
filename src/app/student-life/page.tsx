@@ -1,8 +1,16 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Student Life | Sarvada Modern School",
-  description: "Explore the vibrant student life at Sarvada Modern School, from athletics to arts, culture, and our unique house system.",
+  title: "Student Life | Activities, House System & Culture",
+  description: "Experience the vibrant student life at Sarvada Modern School — four competitive houses (Indira, Subhash, Tagore, Nehru), Sarvada Times school newspaper, cultural festivals, uniform code, and alumni network. Beyond academics, nurturing character since 1972.",
+  keywords: ["school activities Delhi", "student life Karawal Nagar", "school house system", "school uniform code Delhi", "school newspaper Sarvada Times"],
+  alternates: { canonical: "/student-life" },
+  openGraph: {
+    title: "Student Life | Sarvada Modern School",
+    description: "From house competitions to cultural festivals — explore the vibrant student experience at Sarvada Modern School.",
+    url: "https://sarvadamodernschool.com/student-life",
+    type: "website",
+  },
 };
 
 export default function StudentLifePage() {

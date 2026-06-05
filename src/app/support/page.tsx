@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 export const metadata = {
   title: "Support Us & Partnership Opportunities | Sarvada Modern School",
   description: "Join hands with Sarvada Shiksha Samiti to fund modern digital labs, sponsor clean drinking water, and build a permanent endowment fund for underprivileged children.",
+  robots: { index: false, follow: false },
 };
 
 export default function SupportPage() {

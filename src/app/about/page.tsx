@@ -1,8 +1,16 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Our Heritage & Leadership | 54 Years of Excellence | Sarvada Modern School",
-  description: "Learn about the legacy of Sarvada Modern School, established in 1972. Managed by Sarvada Shiksha Samiti, we have been enlightening minds for over five decades.",
+  title: "About Us | Our Heritage & Leadership | 54 Years of Excellence",
+  description: "Discover the 54-year legacy of Sarvada Modern School, established in 1972 in Karawal Nagar, Delhi. Managed by Sarvada Shiksha Samiti under the leadership of Sh. Rakesh Kapoor, offering CBSE-affiliated education with a commitment to holistic student development.",
+  keywords: ["Sarvada Modern School history", "school principal Karawal Nagar", "CBSE school legacy Delhi", "Sarvada Shiksha Samiti", "best school North East Delhi"],
+  alternates: { canonical: "/about" },
+  openGraph: {
+    title: "About Us | Sarvada Modern School",
+    description: "54 years of educational heritage in Karawal Nagar, Delhi. Learn about our leadership, vision, and commitment.",
+    url: "https://sarvadamodernschool.com/about",
+    type: "website",
+  },
 };
 
 export default function AboutPage() {

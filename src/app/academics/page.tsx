@@ -1,8 +1,16 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "CBSE Academics & Infrastructure | Sarvada Modern School Delhi",
-  description: "Explore the comprehensive CBSE curricular framework, CCE evaluation methodology, and world-class academic labs at Sarvada Modern Secondary School, Karawal Nagar.",
+  title: "CBSE Academics, Curriculum & Infrastructure | Labs & Facilities",
+  description: "Explore the comprehensive CBSE curricular framework, CCE evaluation methodology, and world-class academic laboratories at Sarvada Modern School, Karawal Nagar, Delhi. Science lab, computer lab, library, and multimedia resources.",
+  keywords: ["CBSE curriculum Delhi", "CCE evaluation", "school labs Karawal Nagar", "science lab school Delhi", "computer lab school", "academic infrastructure North East Delhi"],
+  alternates: { canonical: "/academics" },
+  openGraph: {
+    title: "Academics & Infrastructure | Sarvada Modern School",
+    description: "CBSE curriculum, CCE framework, and state-of-the-art labs for holistic academic development.",
+    url: "https://sarvadamodernschool.com/academics",
+    type: "website",
+  },
 };
 
 export default function AcademicsPage() {
