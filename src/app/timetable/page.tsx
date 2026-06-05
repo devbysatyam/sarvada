@@ -11,14 +11,46 @@ interface PeriodSlot {
   type: "period" | "break";
 }
 
+interface CellData {
+  subject: string;
+  teacher: string;
+  room: string;
+}
+
 interface TimetableDoc {
   id: string;
   className: string;
   periods: PeriodSlot[];
-  schedule: Record<string, string[]>;
+  schedule: Record<string, (string | CellData)[]>;
 }
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+const SUBJECT_COLORS: Record<string, { bg: string; text: string }> = {
+  Mathematics: { bg: "bg-blue-50", text: "text-blue-700" },
+  English: { bg: "bg-violet-50", text: "text-violet-700" },
+  Hindi: { bg: "bg-orange-50", text: "text-orange-700" },
+  Science: { bg: "bg-emerald-50", text: "text-emerald-700" },
+  "Social Studies": { bg: "bg-amber-50", text: "text-amber-700" },
+  "Computer Science": { bg: "bg-cyan-50", text: "text-cyan-700" },
+  "Physical Training": { bg: "bg-lime-50", text: "text-lime-700" },
+  "Art & Craft": { bg: "bg-pink-50", text: "text-pink-700" },
+  Music: { bg: "bg-fuchsia-50", text: "text-fuchsia-700" },
+  "Moral Science": { bg: "bg-teal-50", text: "text-teal-700" },
+  "General Knowledge": { bg: "bg-sky-50", text: "text-sky-700" },
+  Sanskrit: { bg: "bg-yellow-50", text: "text-yellow-700" },
+  "Environmental Studies": { bg: "bg-green-50", text: "text-green-700" },
+  Library: { bg: "bg-stone-50", text: "text-stone-700" },
+  Robotics: { bg: "bg-indigo-50", text: "text-indigo-700" },
+  Activity: { bg: "bg-rose-50", text: "text-rose-700" },
+};
+
+function getCell(schedule: Record<string, (string | CellData)[]>, day: string, idx: number): CellData {
+  const raw = schedule?.[day]?.[idx];
+  if (!raw) return { subject: "", teacher: "", room: "" };
+  if (typeof raw === "string") return { subject: raw, teacher: "", room: "" };
+  return raw as CellData;
+}
 
 export default function TimetablePage() {
   const [timetables, setTimetables] = useState<TimetableDoc[]>([]);
@@ -33,9 +65,7 @@ export default function TimetablePage() {
         ...d.data(),
       })) as TimetableDoc[];
       setTimetables(data);
-      if (data.length > 0 && !selectedId) {
-        setSelectedId(data[0].id);
-      }
+      if (data.length > 0 && !selectedId) setSelectedId(data[0].id);
       setLoading(false);
     });
     return () => unsub();
@@ -43,17 +73,11 @@ export default function TimetablePage() {
 
   const selected = timetables.find((t) => t.id === selectedId);
 
-  // Build period-index map
   const periodIndexMap: (number | null)[] = [];
   if (selected) {
     let pIdx = 0;
     selected.periods.forEach((slot) => {
-      if (slot.type === "period") {
-        periodIndexMap.push(pIdx);
-        pIdx++;
-      } else {
-        periodIndexMap.push(null);
-      }
+      periodIndexMap.push(slot.type === "period" ? pIdx++ : null);
     });
   }
 
@@ -68,26 +92,23 @@ export default function TimetablePage() {
           Class Timetable
         </h1>
         <p className="font-body-lg text-on-surface-variant leading-relaxed">
-          View the weekly period schedule for each class. Select your class below to see the complete timetable with timings and subject assignments.
+          View the weekly period schedule for each class. Select your class below to see timings, subjects, and teacher assignments.
         </p>
       </section>
 
-      {/* Content */}
       <section className="px-margin-mobile md:px-margin-desktop pb-section-padding">
         {loading ? (
           <div className="py-20 text-center flex flex-col items-center gap-4">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-            <p className="font-label-caps text-[10px] uppercase tracking-widest text-on-surface-variant">
-              Loading timetables...
-            </p>
+            <p className="font-label-caps text-[10px] uppercase tracking-widest text-on-surface-variant">Loading timetables...</p>
           </div>
         ) : timetables.length === 0 ? (
           <div className="py-20 text-center italic text-on-surface-variant">
-            No timetables have been published yet. Please check back soon.
+            No timetables have been published yet.
           </div>
         ) : (
           <div className="max-w-7xl mx-auto space-y-8">
-            {/* Class Selector Tabs */}
+            {/* Class Selector */}
             <div className="flex flex-wrap gap-2 justify-center">
               {timetables.map((tt) => (
                 <button
@@ -104,6 +125,17 @@ export default function TimetablePage() {
               ))}
             </div>
 
+            {/* Subject Color Legend */}
+            {selected && (
+              <div className="flex flex-wrap gap-1.5 justify-center">
+                {Object.entries(SUBJECT_COLORS).map(([subj, style]) => (
+                  <span key={subj} className={`text-[8px] px-2 py-1 ${style.bg} ${style.text} font-label-caps uppercase tracking-widest border border-black/5`}>
+                    {subj}
+                  </span>
+                ))}
+              </div>
+            )}
+
             {/* Timetable Grid */}
             {selected && (
               <div className="overflow-x-auto border border-surface-variant bg-surface-container-lowest shadow-xl">
@@ -114,10 +146,7 @@ export default function TimetablePage() {
                         Period / Time
                       </th>
                       {DAYS.map((day) => (
-                        <th
-                          key={day}
-                          className="p-4 text-center font-label-caps text-[10px] uppercase tracking-widest border-r border-primary/30 last:border-r-0"
-                        >
+                        <th key={day} className="p-4 text-center font-label-caps text-[10px] uppercase tracking-widest border-r border-primary/30 last:border-r-0">
                           {day}
                         </th>
                       ))}
@@ -130,45 +159,36 @@ export default function TimetablePage() {
                       return (
                         <tr
                           key={slotIdx}
-                          className={
-                            isBreak
-                              ? "bg-secondary/8"
-                              : slotIdx % 2 === 0
-                              ? "bg-white"
-                              : "bg-surface-container-lowest"
-                          }
+                          className={isBreak ? "bg-secondary/8" : slotIdx % 2 === 0 ? "bg-white" : "bg-surface-container-lowest"}
                         >
                           <td className="p-4 border-r border-surface-variant border-b border-b-surface-variant">
-                            <div className="font-body-sm font-bold text-primary text-sm">
-                              {slot.label}
-                            </div>
-                            <div className="font-body-sm text-on-surface-variant text-xs mt-0.5">
-                              {slot.startTime} – {slot.endTime}
-                            </div>
+                            <div className="font-body-sm font-bold text-primary text-sm">{slot.label}</div>
+                            <div className="font-body-sm text-on-surface-variant text-xs mt-0.5">{slot.startTime} – {slot.endTime}</div>
                           </td>
                           {isBreak ? (
-                            <td
-                              colSpan={DAYS.length}
-                              className="p-4 text-center font-label-caps text-[11px] uppercase tracking-widest text-secondary border-b border-surface-variant"
-                            >
-                              {slot.label}
+                            <td colSpan={DAYS.length} className="p-4 text-center font-label-caps text-[11px] uppercase tracking-widest text-secondary border-b border-surface-variant">
+                              ☕ {slot.label}
                             </td>
                           ) : (
                             DAYS.map((day) => {
-                              const subject =
-                                schedIdx !== null
-                                  ? selected.schedule?.[day]?.[schedIdx] || ""
-                                  : "";
+                              const cell = schedIdx !== null ? getCell(selected.schedule, day, schedIdx) : { subject: "", teacher: "", room: "" };
+                              const color = SUBJECT_COLORS[cell.subject];
                               return (
-                                <td
-                                  key={day}
-                                  className="p-4 text-center border-r border-surface-variant border-b border-b-surface-variant last:border-r-0"
-                                >
-                                  <span className="font-body-sm text-sm text-on-surface">
-                                    {subject || (
-                                      <span className="text-on-surface-variant/20">—</span>
-                                    )}
-                                  </span>
+                                <td key={day} className={`p-2 border-r border-surface-variant border-b border-b-surface-variant last:border-r-0 text-center ${color ? color.bg : ""}`}>
+                                  {cell.subject ? (
+                                    <div className="flex flex-col items-center gap-0.5">
+                                      <span className={`font-semibold text-xs ${color ? color.text : "text-on-surface"}`}>{cell.subject}</span>
+                                      {cell.teacher && <span className="text-[9px] text-on-surface-variant">{cell.teacher}</span>}
+                                      {cell.room && (
+                                        <span className="text-[8px] text-on-surface-variant/60 italic flex items-center gap-0.5">
+                                          <span className="material-symbols-outlined text-[10px]">meeting_room</span>
+                                          {cell.room}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-on-surface-variant/20">—</span>
+                                  )}
                                 </td>
                               );
                             })

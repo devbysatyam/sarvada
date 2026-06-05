@@ -21,11 +21,17 @@ interface PeriodSlot {
   type: "period" | "break";
 }
 
+interface CellData {
+  subject: string;
+  teacher: string;
+  room: string;
+}
+
 interface TimetableDoc {
   id: string;
   className: string;
   periods: PeriodSlot[];
-  schedule: Record<string, string[]>;
+  schedule: Record<string, (string | CellData)[]>;
   createdAt: any;
 }
 
@@ -35,8 +41,32 @@ const SUBJECTS = [
   "Mathematics", "English", "Hindi", "Science", "Social Studies",
   "Computer Science", "Physical Training", "Art & Craft",
   "Music", "Moral Science", "General Knowledge", "Sanskrit",
-  "Environmental Studies", "Library",
+  "Environmental Studies", "Library", "Robotics", "Activity",
 ];
+
+const SPECIAL_ROOMS = [
+  "Computer Lab", "Science Lab", "Library", "Robotics Lab",
+  "Music Room", "Art Room", "Activity Hall", "Sports Ground",
+];
+
+const SUBJECT_COLORS: Record<string, string> = {
+  Mathematics: "bg-blue-50 text-blue-700 border-blue-200",
+  English: "bg-violet-50 text-violet-700 border-violet-200",
+  Hindi: "bg-orange-50 text-orange-700 border-orange-200",
+  Science: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  "Social Studies": "bg-amber-50 text-amber-700 border-amber-200",
+  "Computer Science": "bg-cyan-50 text-cyan-700 border-cyan-200",
+  "Physical Training": "bg-lime-50 text-lime-700 border-lime-200",
+  "Art & Craft": "bg-pink-50 text-pink-700 border-pink-200",
+  Music: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200",
+  "Moral Science": "bg-teal-50 text-teal-700 border-teal-200",
+  "General Knowledge": "bg-sky-50 text-sky-700 border-sky-200",
+  Sanskrit: "bg-yellow-50 text-yellow-700 border-yellow-200",
+  "Environmental Studies": "bg-green-50 text-green-700 border-green-200",
+  Library: "bg-stone-50 text-stone-700 border-stone-200",
+  Robotics: "bg-indigo-50 text-indigo-700 border-indigo-200",
+  Activity: "bg-rose-50 text-rose-700 border-rose-200",
+};
 
 const defaultPeriods: PeriodSlot[] = [
   { label: "Period 1", startTime: "08:00", endTime: "08:40", type: "period" },
@@ -50,13 +80,20 @@ const defaultPeriods: PeriodSlot[] = [
   { label: "Period 7", startTime: "13:00", endTime: "13:40", type: "period" },
 ];
 
-function emptySchedule(periods: PeriodSlot[]): Record<string, string[]> {
+function emptySchedule(periods: PeriodSlot[]): Record<string, CellData[]> {
   const periodCount = periods.filter((p) => p.type === "period").length;
-  const sched: Record<string, string[]> = {};
+  const sched: Record<string, CellData[]> = {};
   DAYS.forEach((d) => {
-    sched[d] = Array(periodCount).fill("");
+    sched[d] = Array.from({ length: periodCount }, () => ({ subject: "", teacher: "", room: "" }));
   });
   return sched;
+}
+
+function getCell(schedule: Record<string, (string | CellData)[]>, day: string, idx: number): CellData {
+  const raw = schedule?.[day]?.[idx];
+  if (!raw) return { subject: "", teacher: "", room: "" };
+  if (typeof raw === "string") return { subject: raw, teacher: "", room: "" };
+  return raw as CellData;
 }
 
 export default function AdminTimetable() {
@@ -67,7 +104,7 @@ export default function AdminTimetable() {
   // Editor state
   const [editClassName, setEditClassName] = useState("");
   const [editPeriods, setEditPeriods] = useState<PeriodSlot[]>(defaultPeriods);
-  const [editSchedule, setEditSchedule] = useState<Record<string, string[]>>(
+  const [editSchedule, setEditSchedule] = useState<Record<string, (string | CellData)[]>>(
     emptySchedule(defaultPeriods)
   );
   const [editingCell, setEditingCell] = useState<{ day: string; idx: number } | null>(null);
@@ -156,11 +193,11 @@ export default function AdminTimetable() {
     setEditPeriods(newPeriods);
     // Rebuild schedule to match new period count
     const periodCount = newPeriods.filter((p) => p.type === "period").length;
-    const newSched: Record<string, string[]> = {};
+    const newSched: Record<string, (string | CellData)[]> = {};
     DAYS.forEach((d) => {
       const existing = editSchedule[d] || [];
       newSched[d] = [...existing];
-      while (newSched[d].length < periodCount) newSched[d].push("");
+      while (newSched[d].length < periodCount) newSched[d].push({ subject: "", teacher: "", room: "" });
     });
     setEditSchedule(newSched);
   };
@@ -175,7 +212,7 @@ export default function AdminTimetable() {
       for (let i = 0; i < idx; i++) {
         if (editPeriods[i].type === "period") periodIdx++;
       }
-      const newSched: Record<string, string[]> = {};
+      const newSched: Record<string, (string | CellData)[]> = {};
       DAYS.forEach((d) => {
         const arr = [...(editSchedule[d] || [])];
         arr.splice(periodIdx, 1);
@@ -358,51 +395,80 @@ export default function AdminTimetable() {
                             </td>
                           ) : (
                             DAYS.map((day) => {
-                              const val =
-                                schedIdx !== null
-                                  ? editSchedule[day]?.[schedIdx] || ""
-                                  : "";
-                              const isEditing =
-                                editingCell?.day === day &&
-                                editingCell?.idx === schedIdx;
+                              const cell = schedIdx !== null ? getCell(editSchedule, day, schedIdx) : { subject: "", teacher: "", room: "" };
+                              const isEditing = editingCell?.day === day && editingCell?.idx === schedIdx;
+                              const colorClass = SUBJECT_COLORS[cell.subject] || "";
                               return (
                                 <td
                                   key={day}
-                                  className="p-1 border-r border-surface-variant border-b border-b-surface-variant last:border-r-0 relative"
+                                  className={`p-0.5 border-r border-surface-variant border-b border-b-surface-variant last:border-r-0 relative ${cell.subject ? colorClass.split(" ")[0] : ""}`}
                                 >
                                   {isEditing && schedIdx !== null ? (
-                                    <select
-                                      autoFocus
-                                      value={val}
-                                      onChange={(e) => {
-                                        const newSched = { ...editSchedule };
-                                        newSched[day] = [...(newSched[day] || [])];
-                                        newSched[day][schedIdx] = e.target.value;
-                                        setEditSchedule(newSched);
-                                        setEditingCell(null);
-                                      }}
-                                      onBlur={() => setEditingCell(null)}
-                                      className="w-full p-2 bg-white border border-primary outline-none text-xs font-body-sm"
-                                    >
-                                      <option value="">— Select —</option>
-                                      {SUBJECTS.map((s) => (
-                                        <option key={s} value={s}>
-                                          {s}
-                                        </option>
-                                      ))}
-                                    </select>
+                                    <div className="absolute z-50 top-0 left-0 w-64 bg-white border-2 border-primary shadow-2xl p-3 space-y-2 rounded" onMouseDown={(e) => e.stopPropagation()}>
+                                      <select
+                                        autoFocus
+                                        value={cell.subject}
+                                        onChange={(e) => {
+                                          const newSched = { ...editSchedule };
+                                          newSched[day] = [...(newSched[day] || [])];
+                                          newSched[day][schedIdx] = { ...cell, subject: e.target.value };
+                                          setEditSchedule(newSched);
+                                        }}
+                                        className="w-full p-2 bg-surface-container border border-surface-variant outline-none text-xs font-body-sm focus:border-primary"
+                                      >
+                                        <option value="">— Subject —</option>
+                                        {SUBJECTS.map((s) => (
+                                          <option key={s} value={s}>{s}</option>
+                                        ))}
+                                      </select>
+                                      <input
+                                        type="text"
+                                        placeholder="Teacher name"
+                                        value={cell.teacher}
+                                        onChange={(e) => {
+                                          const newSched = { ...editSchedule };
+                                          newSched[day] = [...(newSched[day] || [])];
+                                          newSched[day][schedIdx] = { ...cell, teacher: e.target.value };
+                                          setEditSchedule(newSched);
+                                        }}
+                                        className="w-full p-2 bg-surface-container border border-surface-variant outline-none text-xs font-body-sm focus:border-primary"
+                                      />
+                                      <select
+                                        value={cell.room}
+                                        onChange={(e) => {
+                                          const newSched = { ...editSchedule };
+                                          newSched[day] = [...(newSched[day] || [])];
+                                          newSched[day][schedIdx] = { ...cell, room: e.target.value };
+                                          setEditSchedule(newSched);
+                                        }}
+                                        className="w-full p-2 bg-surface-container border border-surface-variant outline-none text-xs font-body-sm focus:border-primary"
+                                      >
+                                        <option value="">— Classroom —</option>
+                                        {SPECIAL_ROOMS.map((r) => (
+                                          <option key={r} value={r}>{r}</option>
+                                        ))}
+                                      </select>
+                                      <button
+                                        onClick={() => setEditingCell(null)}
+                                        className="w-full py-1.5 bg-primary text-on-primary text-xs font-label-caps uppercase tracking-widest hover:bg-secondary transition-all"
+                                      >Done</button>
+                                    </div>
                                   ) : (
                                     <button
                                       onClick={() =>
                                         schedIdx !== null &&
                                         setEditingCell({ day, idx: schedIdx })
                                       }
-                                      className="w-full p-2 text-center text-xs font-body-sm hover:bg-surface-container transition-colors min-h-[40px] cursor-pointer"
+                                      className={`w-full p-1.5 text-center text-[10px] font-body-sm hover:bg-surface-container transition-colors min-h-[52px] cursor-pointer flex flex-col items-center justify-center gap-0.5 ${cell.subject ? colorClass.split(" ").slice(1).join(" ") : ""}`}
                                     >
-                                      {val || (
-                                        <span className="text-on-surface-variant/30 italic">
-                                          click
-                                        </span>
+                                      {cell.subject ? (
+                                        <>
+                                          <span className="font-semibold leading-tight">{cell.subject}</span>
+                                          {cell.teacher && <span className="opacity-60 text-[8px] leading-tight">{cell.teacher}</span>}
+                                          {cell.room && <span className="opacity-50 text-[8px] leading-tight italic">{cell.room}</span>}
+                                        </>
+                                      ) : (
+                                        <span className="text-on-surface-variant/30 italic text-[9px]">click</span>
                                       )}
                                     </button>
                                   )}
@@ -422,6 +488,51 @@ export default function AdminTimetable() {
               Select a class from the left to edit its timetable.
             </div>
           )}
+        </div>
+      )}
+
+      {/* Room Availability Dashboard */}
+      {!loading && timetables.length > 0 && (
+        <div className="space-y-4 mt-4">
+          <div className="flex items-center gap-3 border-t border-surface-variant pt-6">
+            <span className="material-symbols-outlined text-primary text-2xl">meeting_room</span>
+            <h3 className="font-headline-sm text-primary uppercase tracking-widest text-sm">Room Availability</h3>
+            <span className="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-widest bg-surface-container px-3 py-1 border border-surface-variant">All Classes</span>
+          </div>
+          {SPECIAL_ROOMS.map((room) => {
+            const bookings: { day: string; period: string; time: string; cls: string; subject: string }[] = [];
+            timetables.forEach((tt) => {
+              let pIdx = 0;
+              (tt.periods || []).forEach((slot) => {
+                if (slot.type === "period") {
+                  DAYS.forEach((day) => {
+                    const c = getCell(tt.schedule, day, pIdx);
+                    if (c.room === room) bookings.push({ day, period: slot.label, time: `${slot.startTime}–${slot.endTime}`, cls: tt.className, subject: c.subject });
+                  });
+                  pIdx++;
+                }
+              });
+            });
+            if (bookings.length === 0) return null;
+            return (
+              <div key={room} className="border border-surface-variant bg-surface-container-lowest p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="material-symbols-outlined text-secondary text-lg">door_open</span>
+                  <span className="font-body-sm font-bold text-primary">{room}</span>
+                  <span className="font-label-caps text-[8px] text-on-surface-variant uppercase tracking-widest ml-auto">{bookings.length} slots booked</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {bookings.map((b, i) => (
+                    <div key={i} className="text-[9px] px-2.5 py-1.5 bg-surface-container border border-surface-variant flex items-center gap-2">
+                      <span className="font-semibold text-primary">{b.cls}</span>
+                      <span className="text-on-surface-variant">{b.day.slice(0, 3)} {b.time}</span>
+                      <span className="text-secondary">{b.subject}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
