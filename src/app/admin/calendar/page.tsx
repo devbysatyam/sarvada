@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import {
   collection, addDoc, updateDoc, deleteDoc, doc,
   onSnapshot, query, orderBy, serverTimestamp,
+  getDoc, setDoc
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -60,6 +61,130 @@ export default function AdminCalendar() {
     description: "", applicableClasses: "", coordinator: "",
   });
 
+  const [todayStr, setTodayStr] = useState("");
+  const [shiftingEvent, setShiftingEvent] = useState<CalendarEvent | null>(null);
+  const [newShiftDate, setNewShiftDate] = useState("");
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const [selectedYear, setSelectedYear] = useState("2025-26");
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [recipientEmails, setRecipientEmails] = useState("admin@sarvadaschool.com");
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [academicYears, setAcademicYears] = useState<string[]>(["2024-25", "2025-26", "2026-27"]);
+  const [newYearInput, setNewYearInput] = useState("");
+
+  const getAcademicYear = (dateStr: string): string => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr + "T00:00:00");
+    const year = d.getFullYear();
+    const month = d.getMonth();
+    if (month >= 3) {
+      return `${year}-${String(year + 1).slice(-2)}`;
+    } else {
+      return `${year - 1}-${String(year).slice(-2)}`;
+    }
+  };
+
+  const handleExportCalendarCSV = () => {
+    const headers = ["Title", "Start Date", "End Date", "Category", "Target Classes", "Coordinator", "Description"];
+    const rows = filtered.map(e => [
+      `"${(e.title || "").replace(/"/g, '""')}"`,
+      `"${e.date || ""}"`,
+      `"${e.endDate || ""}"`,
+      `"${e.category || ""}"`,
+      `"${(e.applicableClasses || "").replace(/"/g, '""')}"`,
+      `"${(e.coordinator || "").replace(/"/g, '""')}"`,
+      `"${(e.description || "").replace(/"/g, '""')}"`
+    ]);
+    const csvContent = "\ufeff" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Sarvada_School_Calendar_${selectedYear}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleSendEmailDigest = async () => {
+    setSendingEmail(true);
+    try {
+      const todayObj = todayStr ? new Date(todayStr + "T00:00:00") : new Date();
+      
+      const weekly = events.filter(e => {
+        if (getAcademicYear(e.date) !== selectedYear) return false;
+        if (!e.date) return false;
+        const evtDate = new Date(e.date + "T00:00:00");
+        const diff = evtDate.getTime() - todayObj.getTime();
+        const diffDays = Math.ceil(diff / (1000 * 60 * 60 * 24));
+        return diffDays >= 0 && diffDays <= 7;
+      }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      const monthly = events.filter(e => {
+        if (getAcademicYear(e.date) !== selectedYear) return false;
+        if (!e.date) return false;
+        const evtDate = new Date(e.date + "T00:00:00");
+        const diff = evtDate.getTime() - todayObj.getTime();
+        const diffDays = Math.ceil(diff / (1000 * 60 * 60 * 24));
+        return diffDays >= 0 && diffDays <= 30;
+      }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      let messageText = `Academic Calendar Event Digest for ${selectedYear} (Generated: ${todayObj.toLocaleDateString()})\n\n`;
+      
+      messageText += `--- 📅 WEEKLY UPCOMING EVENTS (Next 7 Days) ---\n`;
+      if (weekly.length === 0) {
+        messageText += `No events scheduled in the next 7 days.\n`;
+      } else {
+        weekly.forEach(e => {
+          messageText += `- ${e.date}: ${e.title} (${e.category})\n`;
+          if (e.description) messageText += `  Prep Notes: ${e.description}\n`;
+        });
+      }
+      
+      messageText += `\n--- 📋 MONTHLY PLANNING DIGEST (Next 30 Days) ---\n`;
+      if (monthly.length === 0) {
+        messageText += `No events scheduled in the next 30 days.\n`;
+      } else {
+        monthly.forEach(e => {
+          messageText += `- ${e.date}: ${e.title} (${e.category})\n`;
+          if (e.description) messageText += `  Prep Notes: ${e.description}\n`;
+        });
+      }
+
+      const WEBHOOK_URL = process.env.NEXT_PUBLIC_GOOGLE_WEBHOOK_URL || "";
+      if (!WEBHOOK_URL) {
+        throw new Error("Webhook URL is not configured.");
+      }
+
+      await fetch(WEBHOOK_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          formType: "CalendarDigest",
+          subject: weekly.length === 0 && monthly.length === 0
+            ? `Sarvada Calendar Alert: No Upcoming School Events for ${selectedYear}`
+            : `Sarvada Calendar Digest: ${weekly.length} Weekly / ${monthly.length} Monthly Events`,
+          weeklyCount: weekly.length,
+          monthlyCount: monthly.length,
+          message: messageText,
+          recipients: recipientEmails,
+          timestamp: new Date().toISOString()
+        }),
+      });
+
+      showToast("Calendar digest email dispatched successfully!");
+    } catch (error) {
+      console.error("Error dispatching email digest:", error);
+      alert("Failed to send email digest. Please ensure Google Webhook URL is configured.");
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
   const openAddModal = () => {
     setEditingId(null);
     setNewEvent({ title: "", date: "", endDate: "", category: "Holiday", description: "", applicableClasses: "", coordinator: "" });
@@ -77,6 +202,29 @@ export default function AdminCalendar() {
   };
 
   useEffect(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    setTodayStr(`${yyyy}-${mm}-${dd}`);
+
+    const loadSettings = async () => {
+      try {
+        const docRef = doc(db, "settings", "calendar");
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setRecipientEmails(data.recipients || "admin@sarvadaschool.com");
+          if (data.years && Array.isArray(data.years) && data.years.length > 0) {
+            setAcademicYears(data.years);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load calendar settings:", err);
+      }
+    };
+    loadSettings();
+
     const q = query(collection(db, "calendar"), orderBy("date", "asc"));
     const unsub = onSnapshot(q, (snap) => {
       setEvents(snap.docs.map((d) => ({ id: d.id, ...d.data() })) as CalendarEvent[]);
@@ -84,6 +232,78 @@ export default function AdminCalendar() {
     });
     return () => unsub();
   }, []);
+
+  const handleSaveSettings = async () => {
+    setSavingSettings(true);
+    try {
+      await setDoc(doc(db, "settings", "calendar"), {
+        recipients: recipientEmails,
+        years: academicYears
+      }, { merge: true });
+      showToast("Calendar settings updated successfully!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save settings.");
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const handleAddYear = async () => {
+    const formatted = newYearInput.trim();
+    if (!formatted) return;
+    if (!/^\d{4}-\d{2}$/.test(formatted)) {
+      alert("Invalid format! Please use YYYY-YY (e.g. 2027-28).");
+      return;
+    }
+    if (academicYears.includes(formatted)) {
+      alert("This academic year session already exists.");
+      return;
+    }
+    const updatedYears = [...academicYears, formatted].sort((a, b) => {
+      const yearA = parseInt(a.split("-")[0]);
+      const yearB = parseInt(b.split("-")[0]);
+      return yearA - yearB;
+    });
+    setAcademicYears(updatedYears);
+    setNewYearInput("");
+    
+    try {
+      await setDoc(doc(db, "settings", "calendar"), {
+        recipients: recipientEmails,
+        years: updatedYears
+      }, { merge: true });
+      showToast(`Academic session "${formatted}" added successfully!`);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save updated sessions to database.");
+    }
+  };
+
+  const handleDeleteYear = async (yearToDelete: string) => {
+    if (["2024-25", "2025-26", "2026-27"].includes(yearToDelete)) {
+      alert("Core academic years (2024-25, 2025-26, 2026-27) cannot be deleted.");
+      return;
+    }
+    if (!confirm(`Are you sure you want to delete the academic session "${yearToDelete}"?`)) {
+      return;
+    }
+    const updatedYears = academicYears.filter(y => y !== yearToDelete);
+    setAcademicYears(updatedYears);
+    if (selectedYear === yearToDelete) {
+      setSelectedYear("2025-26");
+    }
+    try {
+      await setDoc(doc(db, "settings", "calendar"), {
+        recipients: recipientEmails,
+        years: updatedYears
+      }, { merge: true });
+      showToast(`Academic session "${yearToDelete}" deleted successfully!`);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save updated sessions to database.");
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,6 +324,39 @@ export default function AdminCalendar() {
     setEditingId(null);
   };
 
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleShiftConfirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!shiftingEvent || !newShiftDate) return;
+    const newMonth = getMonthFromDate(newShiftDate);
+    await updateDoc(doc(db, "calendar", shiftingEvent.id), {
+      date: newShiftDate,
+      month: newMonth,
+      updatedAt: serverTimestamp(),
+    });
+    showToast(`Shifted "${shiftingEvent.title}" to ${formatDate(newShiftDate)}`);
+    setShiftingEvent(null);
+    setNewShiftDate("");
+  };
+
+  const copyNotes = (text: string, title: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast(`Copied notes for "${title}" to clipboard!`);
+    }).catch(() => {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      showToast(`Copied notes for "${title}" to clipboard!`);
+    });
+  };
+
   const handleDelete = async (id: string) => {
     if (!window.confirm("Remove this calendar entry?")) return;
     await deleteDoc(doc(db, "calendar", id));
@@ -111,6 +364,7 @@ export default function AdminCalendar() {
 
   // Filtered events
   const filtered = events.filter((e) => {
+    if (getAcademicYear(e.date) !== selectedYear) return false;
     if (filterCat !== "All" && e.category !== filterCat) return false;
     if (filterMonth !== "All" && e.month !== filterMonth) return false;
     return true;
@@ -146,11 +400,136 @@ export default function AdminCalendar() {
         </button>
       </div>
 
+      {/* Year Switcher and Action Buttons Row */}
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-surface-container-low p-4 border border-surface-variant">
+        <div className="flex items-center gap-3">
+          <span className="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">Academic Year:</span>
+          <div className="flex border border-surface-variant rounded overflow-hidden">
+            {academicYears.map((y) => (
+              <button
+                key={y}
+                onClick={() => setSelectedYear(y)}
+                className={`px-4 py-2 font-label-caps text-[10px] uppercase tracking-widest transition-all ${
+                  selectedYear === y
+                    ? "bg-primary text-on-primary font-bold"
+                    : "bg-white hover:bg-surface-container text-on-surface-variant"
+                }`}
+              >
+                {y}
+              </button>
+            ))}
+          </div>
+        </div>
+        
+        <div className="flex gap-2">
+          {/* Email Digest Button */}
+          <button
+            onClick={handleSendEmailDigest}
+            disabled={sendingEmail}
+            className="flex items-center gap-2 px-5 py-2.5 bg-surface-container-highest hover:bg-surface-variant border border-surface-variant text-primary font-label-caps text-[10px] uppercase tracking-widest transition-all"
+          >
+            <span className="material-symbols-outlined text-[16px]">mail</span>
+            <span>{sendingEmail ? "Sending..." : "Email Alerts Digest"}</span>
+          </button>
+          
+          {/* Export CSV Button */}
+          <button
+            onClick={handleExportCalendarCSV}
+            className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-secondary text-on-primary font-label-caps text-[10px] uppercase tracking-widest transition-all shadow-md"
+          >
+            <span className="material-symbols-outlined text-[16px]">download</span>
+            <span>Export to Excel</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Alert / Notification Settings Row */}
+      <div className="bg-surface-container-lowest p-6 border-x border-b border-surface-variant mb-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Email settings */}
+        <div className="space-y-3">
+          <div>
+            <h4 className="font-label-caps text-[10px] text-primary uppercase tracking-widest font-bold flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-sm">mail</span>
+              <span>Email Digest Settings</span>
+            </h4>
+            <p className="text-[10px] text-on-surface-variant/70 italic mt-0.5">
+              These recipients receive the Weekly/Monthly planning digest when executing manual digests or triggers.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={recipientEmails}
+              onChange={(e) => setRecipientEmails(e.target.value)}
+              placeholder="e.g. principal@sarvada.in, admin@sarvada.in"
+              className="flex-1 px-3 py-2 border border-surface-variant text-xs focus:outline-none focus:border-primary font-mono bg-white"
+            />
+            <button
+              onClick={handleSaveSettings}
+              disabled={savingSettings}
+              className="px-5 py-2 bg-primary hover:bg-secondary text-on-primary text-xs font-label-caps uppercase tracking-widest transition-all shrink-0 font-bold"
+            >
+              {savingSettings ? "Saving..." : "Save Recipients"}
+            </button>
+          </div>
+        </div>
+
+        {/* Academic sessions management */}
+        <div className="space-y-3 border-t md:border-t-0 md:border-l border-surface-variant/50 pt-4 md:pt-0 md:pl-6">
+          <div>
+            <h4 className="font-label-caps text-[10px] text-primary uppercase tracking-widest font-bold flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-sm">history</span>
+              <span>Manage Academic Sessions</span>
+            </h4>
+            <p className="text-[10px] text-on-surface-variant/70 italic mt-0.5">
+              Configure active academic years (format: YYYY-YY). Core years cannot be deleted.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-1.5 items-center bg-surface-container-low p-2 border border-surface-variant/60 rounded">
+            {academicYears.map((y) => {
+              const isCore = ["2024-25", "2025-26", "2026-27"].includes(y);
+              return (
+                <span key={y} className="inline-flex items-center gap-1 bg-white border border-surface-variant text-[11px] px-2.5 py-1 rounded font-mono">
+                  <span>{y}</span>
+                  {!isCore && (
+                    <button
+                      onClick={() => handleDeleteYear(y)}
+                      className="text-red-600 hover:text-red-800 font-bold flex items-center justify-center w-3 h-3 hover:bg-red-50 rounded-full"
+                      title={`Delete session ${y}`}
+                    >
+                      <span className="material-symbols-outlined text-[12px] font-bold">close</span>
+                    </button>
+                  )}
+                </span>
+              );
+            })}
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newYearInput}
+              onChange={(e) => setNewYearInput(e.target.value)}
+              placeholder="e.g. 2027-28"
+              className="flex-1 px-3 py-2 border border-surface-variant text-xs focus:outline-none focus:border-primary font-mono bg-white"
+            />
+            <button
+              onClick={handleAddYear}
+              className="px-5 py-2 bg-primary hover:bg-secondary text-on-primary text-xs font-label-caps uppercase tracking-widest transition-all shrink-0 font-bold flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-xs">add</span>
+              <span>Add Session</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Category Stats */}
       {!loading && events.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
           {CATEGORIES.map((cat) => {
-            const count = events.filter((e) => e.category === cat).length;
+            const count = events.filter((e) => getAcademicYear(e.date) === selectedYear && e.category === cat).length;
             const style = CATEGORY_STYLES[cat];
             return (
               <button key={cat} onClick={() => setFilterCat(filterCat === cat ? "All" : cat)}
@@ -161,6 +540,131 @@ export default function AdminCalendar() {
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* Alert Dashboard */}
+      {!loading && events.length > 0 && (
+        <div className="border border-surface-variant bg-surface-container-lowest p-6 space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-surface-variant pb-4">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-2xl">event_upcoming</span>
+              <h4 className="font-display-sm text-primary uppercase tracking-widest text-base font-semibold">Administrative Planning & Alerts</h4>
+            </div>
+            {todayStr && (
+              <div className="text-xs text-on-surface-variant font-medium">
+                Current Date: <span className="font-mono text-primary font-bold">{formatDate(todayStr)}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Weekly Alert */}
+            <div className="space-y-3">
+              <h5 className="font-label-caps text-[10px] text-primary uppercase tracking-widest font-bold">📅 Weekly Upcoming (Next 7 Days)</h5>
+              <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                {(() => {
+                  const todayObj = todayStr ? new Date(todayStr + "T00:00:00") : new Date();
+                  const weekly = events.filter(e => {
+                    if (getAcademicYear(e.date) !== selectedYear) return false;
+                    if (!e.date) return false;
+                    const evtDate = new Date(e.date + "T00:00:00");
+                    const diff = evtDate.getTime() - todayObj.getTime();
+                    const diffDays = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                    return diffDays >= 0 && diffDays <= 7;
+                  }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+                  if (weekly.length === 0) {
+                    return <p className="text-xs text-on-surface-variant italic">No events in the next 7 days.</p>;
+                  }
+
+                  return weekly.map(evt => (
+                    <div key={evt.id} className="text-xs p-2 bg-surface-container border border-surface-variant/40 flex justify-between items-start">
+                      <div>
+                        <span className="font-semibold text-primary">{formatDate(evt.date)}</span>
+                        <p className="text-on-surface-variant">{evt.title}</p>
+                      </div>
+                      <span className="text-[10px] text-on-primary bg-primary px-1.5 py-0.5 rounded font-mono">
+                        {Math.ceil((new Date(evt.date + "T00:00:00").getTime() - todayObj.getTime()) / (1000 * 60 * 60 * 24))}d
+                      </span>
+                    </div>
+                  ));
+                })()}
+              </div>
+            </div>
+
+            {/* Monthly Digest & Prep Notes */}
+            <div className="space-y-3 lg:col-span-2 border-t lg:border-t-0 lg:border-l border-surface-variant/50 pt-4 lg:pt-0 lg:pl-6">
+              <h5 className="font-label-caps text-[10px] text-primary uppercase tracking-widest font-bold">📋 Monthly Planning Digest & Prep Notes</h5>
+              <div className="space-y-3 max-h-[250px] overflow-y-auto pr-1">
+                {(() => {
+                  const todayObj = todayStr ? new Date(todayStr + "T00:00:00") : new Date();
+                  const monthly = events.filter(e => {
+                    if (getAcademicYear(e.date) !== selectedYear) return false;
+                    if (!e.date) return false;
+                    const evtDate = new Date(e.date + "T00:00:00");
+                    const diff = evtDate.getTime() - todayObj.getTime();
+                    const diffDays = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                    return diffDays >= 0 && diffDays <= 30;
+                  }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+                  if (monthly.length === 0) {
+                    return <p className="text-xs text-on-surface-variant italic">No events in the next 30 days.</p>;
+                  }
+
+                  return monthly.map(evt => (
+                    <div key={evt.id} className="text-xs p-3 bg-surface-container border border-surface-variant/40 space-y-2">
+                      <div className="flex justify-between items-center gap-2">
+                        <span className="font-semibold text-primary">{formatDate(evt.date)} — {evt.title} ({evt.category})</span>
+                        {evt.description && (
+                          <button onClick={() => copyNotes(evt.description, evt.title)}
+                            className="flex items-center gap-1 text-[10px] border border-primary text-primary px-2 py-1 bg-white hover:bg-primary hover:text-on-primary transition-all shrink-0">
+                            <span className="material-symbols-outlined text-[12px]">content_copy</span>
+                            <span>Copy Notes</span>
+                          </button>
+                        )}
+                      </div>
+                      {evt.description ? (
+                        <p className="text-on-surface-variant text-[11px] bg-white p-2 border border-surface-variant/30 font-serif italic whitespace-pre-line">{evt.description}</p>
+                      ) : (
+                        <p className="text-on-surface-variant/60 italic text-[11px]">No preparation notes added. Click edit to add notes.</p>
+                      )}
+                    </div>
+                  ));
+                })()}
+              </div>
+            </div>
+          </div>
+
+          {/* Quarterly Forecast */}
+          {(() => {
+            const todayObj = todayStr ? new Date(todayStr + "T00:00:00") : new Date();
+            const quarterly = events.filter(e => {
+              if (getAcademicYear(e.date) !== selectedYear) return false;
+              if (!e.date) return false;
+              const evtDate = new Date(e.date + "T00:00:00");
+              const diff = evtDate.getTime() - todayObj.getTime();
+              const diffDays = Math.ceil(diff / (1000 * 60 * 60 * 24));
+              return diffDays >= 0 && diffDays <= 90;
+            });
+
+            const qCounts: Record<string, number> = {};
+            quarterly.forEach(e => {
+              qCounts[e.category] = (qCounts[e.category] || 0) + 1;
+            });
+
+            let breakdown = Object.entries(qCounts).map(([w, c]) => `${c} ${w}`).join(', ');
+            if (breakdown) breakdown = ' (' + breakdown + ')';
+
+            return (
+              <div className="bg-primary/5 p-3 border border-primary/20 text-xs text-primary flex items-center gap-2">
+                <span className="material-symbols-outlined text-lg">online_prediction</span>
+                <span>
+                  <strong>Quarterly Forecast (Next 90 Days):</strong> {quarterly.length} events scheduled{breakdown}.
+                </span>
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -235,7 +739,10 @@ export default function AdminCalendar() {
                         </div>
                       </div>
                       {/* Actions */}
-                      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <button onClick={() => { setShiftingEvent(evt); setNewShiftDate(evt.date || ""); }} title="Shift Date" className="text-on-surface-variant hover:text-primary transition-colors p-2 border border-transparent hover:border-surface-variant hover:bg-white/50">
+                          <span className="material-symbols-outlined text-[18px]">swap_horiz</span>
+                        </button>
                         <button onClick={() => openEditModal(evt)} title="Edit" className="text-on-surface-variant hover:text-primary transition-colors p-2 border border-transparent hover:border-surface-variant hover:bg-white/50">
                           <span className="material-symbols-outlined text-[18px]">edit</span>
                         </button>
@@ -324,6 +831,48 @@ export default function AdminCalendar() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+      {/* Shift Modal */}
+      {shiftingEvent && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest w-full max-w-md p-10 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-primary"></div>
+            <button className="absolute top-6 right-6 text-on-surface-variant hover:text-primary" onClick={() => setShiftingEvent(null)}>
+              <span className="material-symbols-outlined">close</span>
+            </button>
+            <h3 className="font-display-sm text-primary mb-4 uppercase tracking-widest text-lg font-semibold">
+              🔄 Shift Event Date
+            </h3>
+            <p className="text-xs text-on-surface-variant mb-6">
+              Reschedule <strong>"{shiftingEvent.title}"</strong>. The system will automatically recalculate the month and update Firestore.
+            </p>
+            <form onSubmit={handleShiftConfirm} className="space-y-6">
+              <div className="space-y-2">
+                <label className="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-widest">New Date</label>
+                <input required type="date" value={newShiftDate}
+                  onChange={(e) => setNewShiftDate(e.target.value)}
+                  className="w-full px-4 py-4 bg-surface-container border border-surface-variant focus:border-primary outline-none font-body-sm transition-all" />
+              </div>
+              <div className="flex gap-4">
+                <button type="submit" className="flex-1 bg-primary text-on-primary py-4 font-label-caps uppercase tracking-widest hover:bg-secondary transition-all shadow-md text-xs">
+                  Confirm Shift
+                </button>
+                <button type="button" onClick={() => setShiftingEvent(null)}
+                  className="flex-1 border border-surface-variant py-4 font-label-caps uppercase tracking-widest hover:bg-surface-container transition-all text-xs">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 bg-primary text-on-primary px-6 py-4 shadow-xl z-[150] transition-all duration-300 font-body-sm text-xs border border-white/10 flex items-center gap-2">
+          <span className="material-symbols-outlined text-sm">check_circle</span>
+          <span>{toastMessage}</span>
         </div>
       )}
     </div>

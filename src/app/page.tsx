@@ -72,8 +72,47 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── Admission CTA Strip — below hero ─────────────── */}
+      <div className="bg-primary text-on-primary py-5 px-margin-mobile md:px-margin-desktop">
+        <div className="max-w-container-max mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <span className="material-symbols-outlined text-secondary text-[28px] flex-shrink-0">school</span>
+            <div>
+              <p className="font-label-caps text-[10px] uppercase tracking-[0.25em] text-on-primary/60 mb-0.5">
+                Admissions Open · Session {admissionSettings.session}
+              </p>
+              <p className="font-headline-sm text-on-primary text-base leading-tight">
+                {loading ? "Registration is now open" : admissionSettings.spotlightText.substring(0, 72)}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {admissionSettings.deadline && (
+              <span className="hidden md:flex items-center gap-1.5 font-label-caps text-[10px] uppercase tracking-widest text-on-primary/60">
+                <span className="material-symbols-outlined text-[14px]">event</span>
+                Deadline: {admissionSettings.deadline}
+              </span>
+            )}
+            <Link
+              href="/admissions#inquiry-form"
+              className="inline-flex items-center gap-2 px-7 py-3 bg-secondary text-primary font-label-caps text-xs uppercase tracking-widest hover:bg-on-primary hover:text-primary transition-all shadow-md font-bold"
+            >
+              <span className="material-symbols-outlined text-[18px]">edit_note</span>
+              Apply Now
+            </Link>
+            <Link
+              href="/admissions"
+              className="inline-flex items-center gap-1.5 px-6 py-3 border border-on-primary/30 text-on-primary font-label-caps text-xs uppercase tracking-widest hover:border-on-primary/60 transition-all"
+            >
+              Learn More
+            </Link>
+          </div>
+        </div>
+      </div>
+
       {/* Dynamic Admissions Spotlight */}
       {admissionSettings.isActive && (
+
         <section className="py-section-padding px-margin-mobile md:px-margin-desktop bg-surface-container-low border-b border-outline-variant/30">
           <div className="max-w-container-max mx-auto grid grid-cols-1 lg:grid-cols-12 gap-gutter items-center">
             <div className="lg:col-span-7">

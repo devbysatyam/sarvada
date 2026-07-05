@@ -13,6 +13,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { useRBAC, WriteGuard } from "@/context/RBACContext";
 
 const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 
@@ -29,6 +30,8 @@ interface Notice {
 const CATEGORIES = ["General", "Academic", "Examination", "Events", "Admissions", "Urgent", "Administrative"];
 
 export default function AdminDashboard() {
+  const { canWrite } = useRBAC();
+  const canEditNotices = canWrite("notice_board");
   const [notices, setNotices] = useState<Notice[]>([]);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -39,6 +42,7 @@ export default function AdminDashboard() {
   const [saving, setSaving] = useState(false);
   const [filterStatus, setFilterStatus] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [sendingAlert, setSendingAlert] = useState<string | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, "notices"), orderBy("date", "desc"));
@@ -81,10 +85,25 @@ export default function AdminDashboard() {
           updatedAt: serverTimestamp(),
         });
       } else {
-        await addDoc(collection(db, "notices"), {
+        const newDocRef = await addDoc(collection(db, "notices"), {
           ...form,
           date: serverTimestamp(),
         });
+        // Auto-trigger email blast for Urgent notices
+        if (form.priority === "Urgent" && form.status === "Live") {
+          try {
+            await fetch("/api/send-email", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                type: "urgent_notice",
+                notice: { title: form.title, category: form.category, description: form.description },
+              }),
+            });
+          } catch (e) {
+            console.warn("Urgent email blast failed (non-blocking):", e);
+          }
+        }
       }
       setIsEditorOpen(false);
       setEditingId(null);
@@ -92,6 +111,24 @@ export default function AdminDashboard() {
       console.error("Error saving notice:", error);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSendAlert = async (notice: Notice) => {
+    setSendingAlert(notice.id);
+    try {
+      await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "urgent_notice",
+          notice: { title: notice.title, category: notice.category, description: notice.description },
+        }),
+      });
+    } catch (e) {
+      console.error("Failed to send alert:", e);
+    } finally {
+      setSendingAlert(null);
     }
   };
 
@@ -271,13 +308,15 @@ export default function AdminDashboard() {
             ))}
           </div>
         </div>
-        <button
-          onClick={openCreate}
-          className="flex items-center space-x-2 bg-primary text-on-primary px-8 py-3 hover:bg-secondary transition-all shadow-md font-label-caps uppercase tracking-widest text-xs"
-        >
-          <span className="material-symbols-outlined">add</span>
-          <span>New Notice</span>
-        </button>
+        <WriteGuard section="notice_board">
+          <button
+            onClick={openCreate}
+            className="flex items-center space-x-2 bg-primary text-on-primary px-8 py-3 hover:bg-secondary transition-all shadow-md font-label-caps uppercase tracking-widest text-xs"
+          >
+            <span className="material-symbols-outlined">add</span>
+            <span>New Notice</span>
+          </button>
+        </WriteGuard>
       </div>
 
       {/* Data Table */}
@@ -336,12 +375,28 @@ export default function AdminDashboard() {
                     </button>
                   </td>
                   <td className="py-4 px-6 text-right space-x-1">
-                    <button onClick={() => openEdit(notice)} className="text-on-surface-variant hover:text-primary transition-colors p-1.5 border border-transparent hover:border-surface-variant" title="Edit">
-                      <span className="material-symbols-outlined text-[18px]">edit</span>
-                    </button>
-                    <button onClick={() => handleDelete(notice.id)} className="text-on-surface-variant hover:text-error transition-colors p-1.5 border border-transparent hover:border-surface-variant" title="Delete">
-                      <span className="material-symbols-outlined text-[18px]">delete</span>
-                    </button>
+                    {notice.priority === "Urgent" && (
+                      <button
+                        onClick={() => handleSendAlert(notice)}
+                        disabled={sendingAlert === notice.id}
+                        className="text-on-surface-variant hover:text-error transition-colors p-1.5 border border-transparent hover:border-surface-variant disabled:opacity-50"
+                        title="Send urgent email alert"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">
+                          {sendingAlert === notice.id ? "sync" : "notification_important"}
+                        </span>
+                      </button>
+                    )}
+                    <WriteGuard section="notice_board">
+                      <button onClick={() => openEdit(notice)} className="text-on-surface-variant hover:text-primary transition-colors p-1.5 border border-transparent hover:border-surface-variant" title="Edit">
+                        <span className="material-symbols-outlined text-[18px]">edit</span>
+                      </button>
+                    </WriteGuard>
+                    <WriteGuard section="notice_board">
+                      <button onClick={() => handleDelete(notice.id)} className="text-on-surface-variant hover:text-error transition-colors p-1.5 border border-transparent hover:border-surface-variant" title="Delete">
+                        <span className="material-symbols-outlined text-[18px]">delete</span>
+                      </button>
+                    </WriteGuard>
                   </td>
                 </tr>
               ))}

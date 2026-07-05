@@ -11,6 +11,7 @@ import {
   query,
   orderBy,
   serverTimestamp,
+  getDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -30,6 +31,7 @@ interface CellData {
 interface TimetableDoc {
   id: string;
   className: string;
+  academicYear?: string;
   periods: PeriodSlot[];
   schedule: Record<string, (string | CellData)[]>;
   createdAt: any;
@@ -101,6 +103,9 @@ export default function AdminTimetable() {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  const [selectedYear, setSelectedYear] = useState("2025-26");
+  const [academicYears, setAcademicYears] = useState<string[]>(["2024-25", "2025-26", "2026-27"]);
+
   // Editor state
   const [editClassName, setEditClassName] = useState("");
   const [editPeriods, setEditPeriods] = useState<PeriodSlot[]>(defaultPeriods);
@@ -118,6 +123,22 @@ export default function AdminTimetable() {
   const [showPeriodEditor, setShowPeriodEditor] = useState(false);
 
   useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const docRef = doc(db, "settings", "calendar");
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.years && Array.isArray(data.years) && data.years.length > 0) {
+            setAcademicYears(data.years);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load settings in timetable editor:", err);
+      }
+    };
+    loadSettings();
+
     const q = query(collection(db, "timetables"), orderBy("createdAt", "desc"));
     const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs.map((d) => ({
@@ -129,6 +150,11 @@ export default function AdminTimetable() {
     });
     return () => unsub();
   }, []);
+
+  const filteredTimetables = timetables.filter((t: any) => {
+    const y = t.academicYear || "2025-26";
+    return y === selectedYear;
+  });
 
   // Load selected timetable into editor
   useEffect(() => {
@@ -142,11 +168,240 @@ export default function AdminTimetable() {
     }
   }, [selectedId, timetables]);
 
+  // Handle selected year changes and selection auto-routing
+  useEffect(() => {
+    if (filteredTimetables.length > 0) {
+      if (!selectedId || !filteredTimetables.find((t) => t.id === selectedId)) {
+        setSelectedId(filteredTimetables[0].id);
+      }
+    } else {
+      setSelectedId(null);
+      setEditClassName("");
+      setEditPeriods(defaultPeriods);
+      setEditSchedule(emptySchedule(defaultPeriods));
+    }
+  }, [selectedYear, timetables]);
+
+  const handleExportTimetableCSV = () => {
+    if (!selectedId) return;
+    const tt = timetables.find(t => t.id === selectedId);
+    if (!tt) return;
+
+    const headers = ["Period / Slot", ...DAYS];
+    
+    let pIdx = 0;
+    const periodIndexMap: (number | null)[] = [];
+    editPeriods.forEach((slot) => {
+      periodIndexMap.push(slot.type === "period" ? pIdx++ : null);
+    });
+
+    const rows = editPeriods.map((slot, slotIdx) => {
+      const labelCol = `"${slot.label} (${slot.startTime} - ${slot.endTime})"`;
+      const schedIdx = periodIndexMap[slotIdx];
+      const isBreak = slot.type === "break";
+
+      const dayCols = DAYS.map(day => {
+        if (isBreak) return `"${slot.label}"`;
+        const cell = schedIdx !== null ? getCell(editSchedule, day, schedIdx) : { subject: "", teacher: "", room: "" };
+        if (!cell.subject) return `""`;
+        let cellText = cell.subject;
+        if (cell.teacher) cellText += `\nTeacher: ${cell.teacher}`;
+        if (cell.room) cellText += `\nRoom: ${cell.room}`;
+        return `"${cellText.replace(/"/g, '""')}"`;
+      });
+
+      return [labelCol, ...dayCols];
+    });
+
+    const csvContent = "\ufeff" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Sarvada_Timetable_${editClassName || "Class"}_${selectedYear}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleDownloadTemplateCSV = () => {
+    const headers = [
+      "Period Label",
+      "Start Time",
+      "End Time",
+      "Type (period/break)",
+      ...DAYS.flatMap(day => [`${day} Subject`, `${day} Teacher`, `${day} Room`])
+    ];
+
+    const sampleRow = [
+      "Period 1",
+      "08:30",
+      "09:10",
+      "period",
+      "Mathematics",
+      "Dr. Sharma",
+      "Robotics Lab",
+      "English",
+      "Mrs. Sen",
+      "Room 102",
+      "Science",
+      "Mr. Verma",
+      "Physics Lab",
+      "History",
+      "Mrs. Gupta",
+      "Room 103",
+      "Geography",
+      "Mr. Iyer",
+      "Room 104",
+      "Art",
+      "Miss Das",
+      "Art Room"
+    ];
+
+    const sampleBreakRow = [
+      "Short Break",
+      "09:10",
+      "09:30",
+      "break",
+      "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""
+    ];
+
+    const csvContent = "\ufeff" + [
+      headers.join(","),
+      sampleRow.join(","),
+      sampleBreakRow.join(",")
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "Sarvada_Timetable_Template.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        if (!text) return;
+
+        const lines = text.split(/\r?\n/);
+        if (lines.length < 2) {
+          alert("Invalid CSV file: missing headers or data rows.");
+          return;
+        }
+
+        const parseCSVLine = (line: string): string[] => {
+          const result: string[] = [];
+          let current = "";
+          let inQuotes = false;
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            if (char === '"') {
+              inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+              result.push(current.trim());
+              current = "";
+            } else {
+              current += char;
+            }
+          }
+          result.push(current.trim());
+          return result;
+        };
+
+        const newPeriods: PeriodSlot[] = [];
+        const newSchedule: Record<string, CellData[]> = {};
+        
+        DAYS.forEach(day => {
+          newSchedule[day] = [];
+        });
+
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+
+          const cells = parseCSVLine(line);
+          const label = cells[0] || `Period ${i}`;
+          const startTime = cells[1] || "08:00";
+          const endTime = cells[2] || "08:40";
+          const type = (cells[3] || "period").toLowerCase() === "break" ? "break" : "period";
+
+          newPeriods.push({ label, startTime, endTime, type });
+
+          if (type === "period") {
+            DAYS.forEach((day, dayIdx) => {
+              const baseIdx = 4 + dayIdx * 3;
+              const subject = cells[baseIdx] || "";
+              const teacher = cells[baseIdx + 1] || "";
+              const room = cells[baseIdx + 2] || "";
+              newSchedule[day].push({ subject, teacher, room });
+            });
+          }
+        }
+
+        if (newPeriods.length === 0) {
+          alert("No valid period data rows found in the CSV.");
+          return;
+        }
+
+        setEditPeriods(newPeriods);
+        setEditSchedule(newSchedule);
+        alert("Timetable CSV imported successfully! Review the grid below and click Save to store it.");
+      } catch (err) {
+        console.error(err);
+        alert("Error parsing CSV. Please check that it matches the template format.");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const getClashes = (day: string, idx: number, cellData: CellData) => {
+    const clashes: { type: "teacher" | "room"; cls: string; item: string }[] = [];
+    if (!selectedId) return clashes;
+
+    const teacherTrimmed = cellData.teacher.trim().toLowerCase();
+    const room = cellData.room;
+
+    if (!teacherTrimmed && !room) return clashes;
+
+    timetables.forEach((tt) => {
+      if (tt.id === selectedId) return;
+
+      // Ensure the other timetable is in the same academic year
+      const otherYear = tt.academicYear || "2025-26";
+      if (otherYear !== selectedYear) return;
+
+      const otherCell = getCell(tt.schedule, day, idx);
+      
+      // Teacher clash
+      if (teacherTrimmed && otherCell.teacher.trim().toLowerCase() === teacherTrimmed) {
+        clashes.push({ type: "teacher", cls: tt.className, item: otherCell.teacher.trim() });
+      }
+
+      // Room clash
+      if (room && otherCell.room === room) {
+        clashes.push({ type: "room", cls: tt.className, item: room });
+      }
+    });
+
+    return clashes;
+  };
+
   const handleAddClass = async () => {
     if (!newClassName.trim()) return;
     const periods = [...defaultPeriods];
     await addDoc(collection(db, "timetables"), {
       className: newClassName.trim(),
+      academicYear: selectedYear,
       periods,
       schedule: emptySchedule(periods),
       createdAt: serverTimestamp(),
@@ -174,6 +429,7 @@ export default function AdminTimetable() {
         className: editClassName,
         periods: editPeriods,
         schedule: editSchedule,
+        academicYear: selectedYear,
       });
     } catch (err) {
       console.error("Save error:", err);
@@ -264,6 +520,26 @@ export default function AdminTimetable() {
         </button>
       </div>
 
+      {/* Year Switcher Banner */}
+      <div className="flex items-center gap-3 bg-surface-container-low p-4 border border-surface-variant">
+        <span className="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">Academic Year:</span>
+        <div className="flex border border-surface-variant rounded overflow-hidden">
+          {academicYears.map((y) => (
+            <button
+              key={y}
+              onClick={() => setSelectedYear(y)}
+              className={`px-4 py-2 font-label-caps text-[10px] uppercase tracking-widest transition-all ${
+                selectedYear === y
+                  ? "bg-primary text-on-primary font-bold"
+                  : "bg-white hover:bg-surface-container text-on-surface-variant"
+              }`}
+            >
+              {y}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {loading ? (
         <div className="py-20 text-center flex flex-col items-center gap-4">
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
@@ -280,9 +556,9 @@ export default function AdminTimetable() {
           {/* Class List Sidebar */}
           <div className="lg:w-64 shrink-0 space-y-2">
             <p className="font-label-caps text-[10px] uppercase tracking-widest text-on-surface-variant mb-4">
-              Classes ({timetables.length})
+              Classes ({filteredTimetables.length})
             </p>
-            {timetables.map((tt) => (
+            {filteredTimetables.map((tt) => (
               <div
                 key={tt.id}
                 className={`flex items-center justify-between p-4 border cursor-pointer transition-all group ${
@@ -293,7 +569,7 @@ export default function AdminTimetable() {
               >
                 <button
                   onClick={() => setSelectedId(tt.id)}
-                  className="flex-1 text-left font-body-sm font-semibold uppercase tracking-wider"
+                  className="flex-1 text-left font-body-sm font-semibold uppercase tracking-wider text-xs"
                 >
                   {tt.className}
                 </button>
@@ -326,7 +602,35 @@ export default function AdminTimetable() {
                   onChange={(e) => setEditClassName(e.target.value)}
                   className="font-headline-sm text-primary uppercase tracking-widest bg-transparent border-b-2 border-surface-variant focus:border-primary outline-none py-2 px-1 flex-1 min-w-[200px]"
                 />
-                <div className="flex gap-3">
+                <div className="flex gap-3 flex-wrap">
+                  <button
+                    onClick={handleDownloadTemplateCSV}
+                    className="flex items-center gap-2 px-6 py-3 border border-surface-variant font-label-caps text-xs uppercase tracking-widest hover:bg-surface-container transition-all"
+                    title="Download Excel/CSV Timetable Template"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">download_sheet</span>
+                    Template
+                  </button>
+                  <label
+                    className="flex items-center gap-2 px-6 py-3 border border-surface-variant font-label-caps text-xs uppercase tracking-widest hover:bg-surface-container transition-all cursor-pointer"
+                    title="Import Filled Excel/CSV Timetable"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">upload_file</span>
+                    <span>Import</span>
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleImportCSV}
+                      className="hidden"
+                    />
+                  </label>
+                  <button
+                    onClick={handleExportTimetableCSV}
+                    className="flex items-center gap-2 px-6 py-3 border border-surface-variant font-label-caps text-xs uppercase tracking-widest hover:bg-surface-container transition-all"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">download</span>
+                    Export
+                  </button>
                   <button
                     onClick={() => setShowPeriodEditor(true)}
                     className="flex items-center gap-2 px-6 py-3 border border-surface-variant font-label-caps text-xs uppercase tracking-widest hover:bg-surface-container transition-all"
@@ -448,6 +752,26 @@ export default function AdminTimetable() {
                                           <option key={r} value={r}>{r}</option>
                                         ))}
                                       </select>
+                                      {/* Conflict Warnings */}
+                                      {(() => {
+                                        const clashes = getClashes(day, schedIdx, cell);
+                                        if (clashes.length === 0) return null;
+                                        return (
+                                          <div className="space-y-1 bg-rose-50 border border-rose-200 p-2 rounded text-[10px] text-rose-700 max-h-24 overflow-y-auto">
+                                            {clashes.map((c, cIdx) => (
+                                              <div key={cIdx} className="flex items-start gap-1 font-medium">
+                                                <span className="material-symbols-outlined text-[12px] shrink-0 mt-0.5 text-rose-600">warning</span>
+                                                <span>
+                                                  {c.type === "teacher" 
+                                                    ? `Teacher "${c.item}" already scheduled in ${c.cls}`
+                                                    : `Room "${c.item}" already booked by ${c.cls}`
+                                                  }
+                                                </span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        );
+                                      })()}
                                       <button
                                         onClick={() => setEditingCell(null)}
                                         className="w-full py-1.5 bg-primary text-on-primary text-xs font-label-caps uppercase tracking-widest hover:bg-secondary transition-all"

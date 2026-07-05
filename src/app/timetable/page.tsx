@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 interface PeriodSlot {
@@ -56,6 +56,19 @@ export default function TimetablePage() {
   const [timetables, setTimetables] = useState<TimetableDoc[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [selectedYear, setSelectedYear] = useState("2025-26");
+
+  useEffect(() => {
+    // Dynamic academic year based on current date
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth(); // 0-11
+    if (month >= 3) {
+      setSelectedYear(`${year}-${String(year + 1).slice(-2)}`);
+    } else {
+      setSelectedYear(`${year - 1}-${String(year).slice(-2)}`);
+    }
+  }, []);
 
   useEffect(() => {
     const q = query(collection(db, "timetables"), orderBy("createdAt", "desc"));
@@ -65,13 +78,67 @@ export default function TimetablePage() {
         ...d.data(),
       })) as TimetableDoc[];
       setTimetables(data);
-      if (data.length > 0 && !selectedId) setSelectedId(data[0].id);
       setLoading(false);
     });
     return () => unsub();
   }, []);
 
+  const filteredTimetables = timetables.filter((t: any) => {
+    const y = t.academicYear || "2025-26";
+    return y === selectedYear;
+  });
+
+  useEffect(() => {
+    if (filteredTimetables.length > 0) {
+      if (!selectedId || !filteredTimetables.find((t) => t.id === selectedId)) {
+        setSelectedId(filteredTimetables[0].id);
+      }
+    } else {
+      setSelectedId("");
+    }
+  }, [selectedYear, timetables]);
+
   const selected = timetables.find((t) => t.id === selectedId);
+
+  const handleExportTimetableCSV = () => {
+    if (!selected) return;
+
+    const headers = ["Period / Slot", ...DAYS];
+    
+    let pIdx = 0;
+    const periodIndexMap: (number | null)[] = [];
+    selected.periods.forEach((slot) => {
+      periodIndexMap.push(slot.type === "period" ? pIdx++ : null);
+    });
+
+    const rows = selected.periods.map((slot, slotIdx) => {
+      const labelCol = `"${slot.label} (${slot.startTime} - ${slot.endTime})"`;
+      const schedIdx = periodIndexMap[slotIdx];
+      const isBreak = slot.type === "break";
+
+      const dayCols = DAYS.map(day => {
+        if (isBreak) return `"${slot.label}"`;
+        const cell = schedIdx !== null ? getCell(selected.schedule, day, schedIdx) : { subject: "", teacher: "", room: "" };
+        if (!cell.subject) return `""`;
+        let cellText = cell.subject;
+        if (cell.teacher) cellText += `\nTeacher: ${cell.teacher}`;
+        if (cell.room) cellText += `\nRoom: ${cell.room}`;
+        return `"${cellText.replace(/"/g, '""')}"`;
+      });
+
+      return [labelCol, ...dayCols];
+    });
+
+    const csvContent = "\ufeff" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Sarvada_Timetable_${selected.className || "Class"}_${selectedYear}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const periodIndexMap: (number | null)[] = [];
   if (selected) {
@@ -96,21 +163,36 @@ export default function TimetablePage() {
         </p>
       </section>
 
+      {/* Action Buttons Banner */}
+      {selected && (
+        <section className="px-margin-mobile md:px-margin-desktop pb-8">
+          <div className="max-w-7xl mx-auto flex justify-end">
+            <button
+              onClick={handleExportTimetableCSV}
+              className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-secondary text-on-primary font-label-caps text-[10px] uppercase tracking-widest transition-all shadow-md"
+            >
+              <span className="material-symbols-outlined text-[16px]">download</span>
+              <span>Export to Excel</span>
+            </button>
+          </div>
+        </section>
+      )}
+
       <section className="px-margin-mobile md:px-margin-desktop pb-section-padding">
         {loading ? (
           <div className="py-20 text-center flex flex-col items-center gap-4">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
             <p className="font-label-caps text-[10px] uppercase tracking-widest text-on-surface-variant">Loading timetables...</p>
           </div>
-        ) : timetables.length === 0 ? (
+        ) : filteredTimetables.length === 0 ? (
           <div className="py-20 text-center italic text-on-surface-variant">
-            No timetables have been published yet.
+            No timetables have been published yet for academic year {selectedYear}.
           </div>
         ) : (
           <div className="max-w-7xl mx-auto space-y-8">
             {/* Class Selector */}
             <div className="flex flex-wrap gap-2 justify-center">
-              {timetables.map((tt) => (
+              {filteredTimetables.map((tt) => (
                 <button
                   key={tt.id}
                   onClick={() => setSelectedId(tt.id)}

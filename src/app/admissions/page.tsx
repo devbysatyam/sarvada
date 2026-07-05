@@ -135,7 +135,7 @@ export default function AdmissionsPage() {
           </div>
 
           {/* Sidebar Inquiry Form */}
-          <aside className="lg:col-span-4 sticky top-24">
+          <aside id="inquiry-form" className="lg:col-span-4 sticky top-24 scroll-mt-32">
             <div className="bg-surface-container p-10 border border-surface-variant relative overflow-hidden shadow-xl">
               <div className="absolute top-0 right-0 w-2 h-full bg-secondary"></div>
               <h3 className="font-headline-sm text-primary mb-2 uppercase tracking-widest">Inquiry Form</h3>

@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/calendar-digest?type=weekly",
+      "schedule": "30 1 * * 1"
+    },
+    {
+      "path": "/api/cron/calendar-digest?type=monthly",
+      "schedule": "30 1 1 * *"
+    },
+    {
+      "path": "/api/cron/calendar-digest?type=exam",
+      "schedule": "30 1 * * *"
+    },
+    {
+      "path": "/api/cron/calendar-digest?type=admission",
+      "schedule": "30 1 * * 5"
+    }
+  ]
+}
