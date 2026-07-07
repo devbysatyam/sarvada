@@ -3,6 +3,7 @@ import { DM_Sans, DM_Serif_Display } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import FloatingContact from "@/components/FloatingContact";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -192,6 +193,7 @@ export default function RootLayout({
         <Navbar />
         <main className="flex-grow pt-[136px]">{children}</main>
         <Footer />
+        <FloatingContact />
       </body>
     </html>
   );
