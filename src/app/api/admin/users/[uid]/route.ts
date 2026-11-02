@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
+import { db, ensureAuth } from "@/lib/firebase";
 import { type AdminSection, type AdminRole, getDefaultPermissions } from "@/lib/rbac";
 
 /**
@@ -12,6 +12,7 @@ export async function PATCH(
   { params }: { params: Promise<{ uid: string }> }
 ) {
   try {
+    await ensureAuth();
     const { uid } = await params;
     const body = await req.json();
     const { role, permissions, isActive, displayName } = body;
@@ -60,6 +61,7 @@ export async function DELETE(
   { params }: { params: Promise<{ uid: string }> }
 ) {
   try {
+    await ensureAuth();
     const { uid } = await params;
     const { collection, query, where, getDocs, updateDoc } = await import("firebase/firestore");
     const q = query(collection(db, "adminUsers"), where("uid", "==", uid));

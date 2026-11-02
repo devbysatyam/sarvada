@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, signInAnonymously } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -17,4 +17,20 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-export { auth, db };
+let authPromise: Promise<any> | null = null;
+
+export async function ensureAuth() {
+  if (auth.currentUser) return auth.currentUser;
+  if (!authPromise) {
+    authPromise = signInAnonymously(auth)
+      .then((cred) => cred.user)
+      .catch((err) => {
+        authPromise = null;
+        console.warn("Firebase anonymous auth fallback note:", err?.message || err);
+        return null;
+      });
+  }
+  return authPromise;
+}
+
+export { auth, db, app };

@@ -83,7 +83,7 @@ export default function QRCodesPage() {
           <ul className="text-sm text-blue-700 space-y-1 list-disc list-inside">
             <li>Print this sheet and cut the QR cards individually</li>
             <li>Paste them on pamphlets, notice boards, banners, or entry gates</li>
-            <li>Share the direct links in WhatsApp broadcasts or ad campaigns</li>
+            <li>Share the direct links in school announcements, SMS broadcasts, or notices</li>
             <li>Each QR opens directly to the enquiry form — no navigation needed</li>
           </ul>
         </div>

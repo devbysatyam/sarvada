@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { collection, getDocs, getDoc, doc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, ensureAuth } from "@/lib/firebase";
 import {
   weeklyDigestEmail,
   monthlyDigestEmail,
@@ -47,6 +47,9 @@ export async function GET(req: Request) {
       const m = d.getMonth();
       return m >= 3 ? `${y}-${String(y + 1).slice(-2)}` : `${y - 1}-${String(y).slice(-2)}`;
     };
+
+    // Ensure authenticated session to avoid gRPC permission errors
+    await ensureAuth();
 
     // ── Load recipient settings ────────────────────────────────
     let recipients = "admin@sarvadaschool.com";

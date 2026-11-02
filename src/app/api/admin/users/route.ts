@@ -10,7 +10,7 @@ import {
   query,
   orderBy,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, ensureAuth } from "@/lib/firebase";
 import { getDefaultPermissions, type AdminRole, type AdminSection } from "@/lib/rbac";
 
 /**
@@ -20,6 +20,7 @@ import { getDefaultPermissions, type AdminRole, type AdminSection } from "@/lib/
  */
 export async function GET() {
   try {
+    await ensureAuth();
     const q = query(collection(db, "adminUsers"), orderBy("createdAt", "desc"));
     const snapshot = await getDocs(q);
     const users = snapshot.docs.map((d) => ({ uid: d.id, ...d.data() }));
@@ -38,6 +39,7 @@ export async function GET() {
  */
 export async function POST(req: Request) {
   try {
+    await ensureAuth();
     const body = await req.json();
     const { uid, email, displayName, role, permissions, createdBy } = body;
 

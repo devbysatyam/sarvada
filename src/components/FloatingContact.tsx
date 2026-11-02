@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import AdmissionChatbot from "./AdmissionChatbot";
 
 const PHONE = "+919999439422";
 const PHONE_DISPLAY = "+91 99994 39422";
@@ -11,6 +12,7 @@ type FormStatus = "idle" | "submitting" | "success" | "error";
 export default function FloatingContact() {
   const [isOpen, setIsOpen] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [showChatbot, setShowChatbot] = useState(false);
   const [status, setStatus] = useState<FormStatus>("idle");
   const [form, setForm] = useState({
     name: "",
@@ -18,7 +20,6 @@ export default function FloatingContact() {
     subject: "General Inquiry",
     message: "",
   });
-  const formRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click
   useEffect(() => {
@@ -33,12 +34,14 @@ export default function FloatingContact() {
     return () => document.removeEventListener("mousedown", handler);
   }, [isOpen]);
 
-  // Trap scroll on form open (mobile)
+  // Trap scroll on modal open (mobile)
   useEffect(() => {
-    if (showForm) document.body.style.overflow = "hidden";
+    if (showForm || showChatbot) document.body.style.overflow = "hidden";
     else document.body.style.overflow = "";
-    return () => { document.body.style.overflow = ""; };
-  }, [showForm]);
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showForm, showChatbot]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,11 +66,27 @@ export default function FloatingContact() {
 
   return (
     <>
-      {/* ── Enquiry Form Modal ──────────────────────────────── */}
+      {/* ── AI Admission Counselor Modal ───────────────────── */}
+      {showChatbot && (
+        <div
+          className="fixed inset-0 z-[250] flex items-end sm:items-center justify-center bg-slate-950/60 backdrop-blur-sm p-0 sm:p-4 md:p-6 animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowChatbot(false);
+          }}
+        >
+          <div className="w-full h-full sm:h-auto sm:max-w-[480px] flex items-end sm:items-center justify-center animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
+            <AdmissionChatbot onClose={() => setShowChatbot(false)} />
+          </div>
+        </div>
+      )}
+
+      {/* ── Quick Enquiry Form Modal ───────────────────────── */}
       {showForm && (
         <div
           className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-4 pb-4 sm:pb-0"
-          onClick={(e) => { if (e.target === e.currentTarget) setShowForm(false); }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowForm(false);
+          }}
         >
           <div className="w-full max-w-md bg-white shadow-2xl rounded-sm overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
             {/* Modal header */}
@@ -113,7 +132,7 @@ export default function FloatingContact() {
                         type="text"
                         placeholder="Full name"
                         value={form.name}
-                        onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                        onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                         className="w-full px-3 py-2.5 text-sm bg-surface-container border border-surface-variant focus:border-primary outline-none font-body-sm transition-colors"
                       />
                     </div>
@@ -126,7 +145,7 @@ export default function FloatingContact() {
                         type="tel"
                         placeholder="+91 XXXXX XXXXX"
                         value={form.phone}
-                        onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                        onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                         className="w-full px-3 py-2.5 text-sm bg-surface-container border border-surface-variant focus:border-primary outline-none font-body-sm transition-colors"
                       />
                     </div>
@@ -136,10 +155,10 @@ export default function FloatingContact() {
                       </label>
                       <select
                         value={form.subject}
-                        onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}
+                        onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
                         className="w-full px-3 py-2.5 text-sm bg-surface-container border border-surface-variant focus:border-primary outline-none font-body-sm"
                       >
-                        {["General Inquiry", "Admissions", "Fee Structure", "Academic Query", "Other"].map(s => (
+                        {["General Inquiry", "Admissions", "Fee Structure", "Academic Query", "Other"].map((s) => (
                           <option key={s}>{s}</option>
                         ))}
                       </select>
@@ -152,7 +171,7 @@ export default function FloatingContact() {
                         rows={3}
                         placeholder="How can we help you?"
                         value={form.message}
-                        onChange={e => setForm(f => ({ ...f, message: e.target.value }))}
+                        onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))}
                         className="w-full px-3 py-2.5 text-sm bg-surface-container border border-surface-variant focus:border-primary outline-none font-body-sm resize-none transition-colors"
                       />
                     </div>
@@ -197,18 +216,53 @@ export default function FloatingContact() {
         </div>
       )}
 
-      {/* ── Floating Action Button ──────────────────────────── */}
+      {/* ── Floating Action Button & Speed-Dial ─────────────── */}
       <div
         id="floating-contact-fab"
         className="fixed bottom-6 right-5 z-[190] flex flex-col items-end gap-3"
         style={{ bottom: "max(1.5rem, env(safe-area-inset-bottom, 1.5rem))" }}
       >
-        {/* ── Speed-dial options (appear when isOpen) ── */}
+        {/* Speed-dial options (appear when isOpen) */}
         <div
-          className={`flex flex-col items-end gap-2.5 transition-all duration-300 ${
+          className={`flex flex-col items-end gap-3 transition-all duration-300 ${
             isOpen ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-4 pointer-events-none"
           }`}
         >
+          {/* AI Admission Counselor option (Top highlighted) */}
+          <button
+            onClick={() => {
+              setShowChatbot(true);
+              setIsOpen(false);
+            }}
+            className="flex items-center gap-3 group"
+            aria-label="Open AI Admission Counselor"
+          >
+            <span className="bg-slate-900 text-amber-300 font-label-caps text-[10px] uppercase tracking-wider px-3.5 py-2 shadow-xl border border-amber-500/40 group-hover:border-amber-400 group-hover:scale-105 transition-all rounded-md flex items-center gap-1.5 font-bold">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+              AI Admission Counselor
+            </span>
+            <div className="w-13 h-13 rounded-full bg-gradient-to-tr from-amber-600 via-amber-500 to-amber-300 text-slate-950 flex items-center justify-center shadow-xl hover:scale-110 transition-transform border-2 border-white">
+              <span className="text-2xl">🎓</span>
+            </div>
+          </button>
+
+          {/* Quick enquiry form option */}
+          <button
+            onClick={() => {
+              setShowForm(true);
+              setIsOpen(false);
+            }}
+            className="flex items-center gap-3 group"
+            aria-label="Open enquiry form"
+          >
+            <span className="bg-white text-on-surface font-label-caps text-[9px] uppercase tracking-widest px-3 py-1.5 shadow-lg border border-surface-variant group-hover:border-primary group-hover:text-primary transition-all rounded-sm whitespace-nowrap">
+              Quick Form
+            </span>
+            <div className="w-12 h-12 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-lg hover:bg-secondary hover:text-primary transition-colors">
+              <span className="material-symbols-outlined text-[22px]">edit_note</span>
+            </div>
+          </button>
+
           {/* Call option */}
           <a
             href={`tel:${PHONE}`}
@@ -223,34 +277,20 @@ export default function FloatingContact() {
               <span className="material-symbols-outlined text-[22px] symbol-fill">call</span>
             </div>
           </a>
-
-          {/* Enquiry form option */}
-          <button
-            onClick={() => { setShowForm(true); setIsOpen(false); }}
-            className="flex items-center gap-3 group"
-            aria-label="Open enquiry form"
-          >
-            <span className="bg-white text-on-surface font-label-caps text-[9px] uppercase tracking-widest px-3 py-1.5 shadow-lg border border-surface-variant group-hover:border-primary group-hover:text-primary transition-all rounded-sm whitespace-nowrap">
-              Quick Enquiry Form
-            </span>
-            <div className="w-12 h-12 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-lg hover:bg-secondary hover:text-primary transition-colors">
-              <span className="material-symbols-outlined text-[22px]">edit_note</span>
-            </div>
-          </button>
         </div>
 
-        {/* ── Main FAB toggle button ── */}
+        {/* Main FAB toggle button */}
         <button
-          onClick={() => setIsOpen(o => !o)}
-          aria-label={isOpen ? "Close contact options" : "Contact us"}
-          className={`w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all duration-300 ${
+          onClick={() => setIsOpen((o) => !o)}
+          aria-label={isOpen ? "Close options" : "Need help with admissions?"}
+          className={`w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 ${
             isOpen
               ? "bg-surface-container-lowest border-2 border-primary text-primary rotate-45"
               : "bg-primary text-on-primary hover:bg-secondary hover:text-primary"
           }`}
         >
           <span className="material-symbols-outlined text-[26px] transition-transform duration-300">
-            {isOpen ? "close" : "chat_bubble"}
+            {isOpen ? "close" : "smart_toy"}
           </span>
         </button>
       </div>

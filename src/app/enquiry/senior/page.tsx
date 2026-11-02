@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import AntiSpamCaptcha from "@/components/AntiSpamCaptcha";
 
 const WEBHOOK_URL = process.env.NEXT_PUBLIC_GOOGLE_WEBHOOK_URL || "";
 const PHONE = "+919999439422";
@@ -23,6 +24,9 @@ export default function SeniorEnquiryPage() {
   const [session, setSession] = useState("2026-27");
   const [deadline, setDeadline] = useState("27th Dec 2025");
   const [status, setStatus] = useState<Status>("idle");
+  const [isCaptchaVerified, setIsCaptchaVerified] = useState(false);
+  const [refNumber, setRefNumber] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const [form, setForm] = useState({
     parentName: "",
     studentName: "",
@@ -47,17 +51,39 @@ export default function SeniorEnquiryPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage("");
+
+    if (!isCaptchaVerified) {
+      setErrorMessage("Please complete the human verification question below.");
+      return;
+    }
+
     setStatus("submitting");
     try {
-      await fetch(WEBHOOK_URL, {
+      const res = await fetch("/api/enquiry/submit", {
         method: "POST",
-        mode: "no-cors",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, formType: "SeniorEnquiry", session }),
+        body: JSON.stringify({
+          studentName: form.studentName,
+          parentName: form.parentName,
+          phone: form.phone,
+          grade: form.applyingFor,
+          message: `Current class: ${form.currentClass}, Stream: ${form.stream}. ${form.message || ""}`,
+          source: "Senior_Landing_Page",
+        }),
       });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Submission failed. Please try again.");
+      }
+
+      setRefNumber(data.referenceNumber || "");
       setStatus("success");
       setForm({ parentName: "", studentName: "", currentClass: "Class 5", applyingFor: "Class 6", phone: "", stream: "General", message: "" });
-    } catch {
+    } catch (err: any) {
+      console.error("Senior enquiry error:", err);
+      setErrorMessage(err.message || "Failed to submit enquiry.");
       setStatus("error");
     }
   };
@@ -191,9 +217,16 @@ export default function SeniorEnquiryPage() {
                 <div className="text-center py-10">
                   <div className="text-6xl mb-4">✅</div>
                   <h3 className="text-2xl font-bold mb-2" style={{ color: "#059669" }}>Enquiry Sent!</h3>
-                  <p style={{ color: "#6b7280" }} className="mb-6">We'll reach out within 24 hours.</p>
-                  <button onClick={() => setStatus("idle")}
-                    className="px-8 py-3 rounded-xl text-white font-bold"
+                  {refNumber && (
+                    <p className="inline-block text-xs font-mono font-bold px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg mb-3">
+                      Reference ID: {refNumber}
+                    </p>
+                  )}
+                  <p style={{ color: "#6b7280" }} className="mb-6">
+                    Our admissions team will reach out within 24 hours. Your details have been registered!
+                  </p>
+                  <button onClick={() => { setStatus("idle"); setIsCaptchaVerified(false); }}
+                    className="px-8 py-3 rounded-xl text-white font-bold cursor-pointer"
                     style={{ background: "#059669" }}>
                     Submit Another
                   </button>
@@ -254,14 +287,19 @@ export default function SeniorEnquiryPage() {
                     />
                   </div>
 
+                  {/* Anti-Spam Verification */}
+                  <AntiSpamCaptcha onVerify={setIsCaptchaVerified} />
+
                   {status === "error" && (
-                    <p className="text-red-600 text-sm text-center">Error sending. Please call {PHONE_DISPLAY}</p>
+                    <p className="text-red-600 text-sm text-center font-medium">
+                      {errorMessage || `Error sending. Please call ${PHONE_DISPLAY}`}
+                    </p>
                   )}
 
-                  <button type="submit" disabled={status === "submitting"}
-                    className="w-full py-4 rounded-xl text-white font-bold text-base shadow-lg hover:scale-[1.02] transition-transform disabled:opacity-60"
+                  <button type="submit" disabled={status === "submitting" || !isCaptchaVerified}
+                    className="w-full py-4 rounded-xl text-white font-bold text-base shadow-lg hover:scale-[1.02] transition-transform disabled:opacity-60 cursor-pointer"
                     style={{ background: "linear-gradient(135deg, #059669, #047857)" }}>
-                    {status === "submitting" ? "⏳ Submitting..." : "📨 Submit Enquiry"}
+                    {status === "submitting" ? "⏳ Syncing to CRM..." : "📨 Submit Enquiry"}
                   </button>
 
                   <p className="text-center text-xs" style={{ color: "#9ca3af" }}>

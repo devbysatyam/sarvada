@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, lazy, Suspense } from "react";
+import Link from "next/link";
 import {
   collection,
   addDoc,
@@ -43,6 +44,27 @@ export default function AdminDashboard() {
   const [filterStatus, setFilterStatus] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [sendingAlert, setSendingAlert] = useState<string | null>(null);
+  const [admissionsSummary, setAdmissionsSummary] = useState({
+    total: 0,
+    pending: 0,
+    enrolled: 0,
+  });
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "admissions_leads"), (snap) => {
+      const all = snap.docs.map((d) => d.data() as any);
+      const pending = all.filter(
+        (l) => !l.status || l.status === "NEW" || l.workStatus === "PENDING"
+      ).length;
+      const enrolled = all.filter((l) => l.status === "ENROLLED").length;
+      setAdmissionsSummary({
+        total: all.length,
+        pending,
+        enrolled,
+      });
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     const q = query(collection(db, "notices"), orderBy("date", "desc"));
@@ -263,6 +285,41 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-8">
+      {/* Admission Leads & Follow-up Desk Quick Access Banner */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-primary text-white p-5 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm border border-slate-700/80">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/10">
+            <span className="material-symbols-outlined text-2xl text-amber-400">school</span>
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-bold text-sm uppercase tracking-wider text-white">
+                Admission CRM & Follow-Up Desk
+              </h3>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                Skool24 Dual-Sync Active
+              </span>
+              {admissionsSummary.pending > 0 && (
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 animate-pulse">
+                  {admissionsSummary.pending} Action Due
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-300 mt-1">
+              {admissionsSummary.total} Total Inquiries · {admissionsSummary.pending} Follow-ups Pending · {admissionsSummary.enrolled} Enrolled
+            </p>
+          </div>
+        </div>
+
+        <Link
+          href="/admin/admissions"
+          className="px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-lg transition-all flex items-center gap-1.5 shadow-sm shrink-0 cursor-pointer"
+        >
+          <span>Open Leads Management</span>
+          <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+        </Link>
+      </div>
+
       {/* Stats Bar */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-surface-container-lowest border border-surface-variant p-5 text-center">

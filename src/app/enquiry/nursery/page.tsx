@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import AntiSpamCaptcha from "@/components/AntiSpamCaptcha";
 
 const WEBHOOK_URL = process.env.NEXT_PUBLIC_GOOGLE_WEBHOOK_URL || "";
 const PHONE = "+919999439422";
@@ -28,6 +29,9 @@ export default function NurseryEnquiryPage() {
   const [session, setSession] = useState("2026-27");
   const [deadline, setDeadline] = useState("27th Dec 2025");
   const [status, setStatus] = useState<Status>("idle");
+  const [isCaptchaVerified, setIsCaptchaVerified] = useState(false);
+  const [refNumber, setRefNumber] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const [form, setForm] = useState({
     parentName: "",
     childName: "",
@@ -51,17 +55,40 @@ export default function NurseryEnquiryPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage("");
+
+    if (!isCaptchaVerified) {
+      setErrorMessage("Please complete the human verification question below.");
+      return;
+    }
+
     setStatus("submitting");
     try {
-      await fetch(WEBHOOK_URL, {
+      const res = await fetch("/api/enquiry/submit", {
         method: "POST",
-        mode: "no-cors",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, formType: "NurseryEnquiry", session }),
+        body: JSON.stringify({
+          studentName: form.childName,
+          parentName: form.parentName,
+          childDOB: form.childDOB,
+          phone: form.phone,
+          grade: form.classApplying,
+          message: form.message,
+          source: "Nursery_Landing_Page",
+        }),
       });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Submission failed. Please try again.");
+      }
+
+      setRefNumber(data.referenceNumber || "");
       setStatus("success");
       setForm({ parentName: "", childName: "", childDOB: "", phone: "", classApplying: "Playgroup (Age 2-3)", message: "" });
-    } catch {
+    } catch (err: any) {
+      console.error("Nursery form error:", err);
+      setErrorMessage(err.message || "Something went wrong.");
       setStatus("error");
     }
   };
@@ -208,12 +235,17 @@ export default function NurseryEnquiryPage() {
                   <h3 className="text-2xl font-bold mb-2" style={{ color: "#059669" }}>
                     Enquiry Submitted!
                   </h3>
+                  {refNumber && (
+                    <p className="inline-block text-xs font-mono font-bold px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg mb-3">
+                      Reference ID: {refNumber}
+                    </p>
+                  )}
                   <p style={{ color: "#57534e" }} className="mb-6">
-                    Our admissions team will call you within 24 hours. Thank you!
+                    Our admissions team will call you within 24 hours. Your details have been registered!
                   </p>
                   <button
-                    onClick={() => setStatus("idle")}
-                    className="px-8 py-3 rounded-full text-white font-bold"
+                    onClick={() => { setStatus("idle"); setIsCaptchaVerified(false); }}
+                    className="px-8 py-3 rounded-full text-white font-bold cursor-pointer"
                     style={{ background: "#f59e0b" }}
                   >
                     Submit Another
@@ -275,19 +307,22 @@ export default function NurseryEnquiryPage() {
                     />
                   </div>
 
+                  {/* Anti-Spam Verification */}
+                  <AntiSpamCaptcha onVerify={setIsCaptchaVerified} />
+
                   {status === "error" && (
                     <p className="text-red-600 text-sm text-center font-medium">
-                      Something went wrong. Please call us directly at {PHONE_DISPLAY}
+                      {errorMessage || `Something went wrong. Please call us directly at ${PHONE_DISPLAY}`}
                     </p>
                   )}
 
                   <button
                     type="submit"
-                    disabled={status === "submitting"}
-                    className="w-full py-4 rounded-full text-white font-bold text-base shadow-lg hover:scale-[1.02] transition-transform disabled:opacity-60 disabled:scale-100"
+                    disabled={status === "submitting" || !isCaptchaVerified}
+                    className="w-full py-4 rounded-full text-white font-bold text-base shadow-lg hover:scale-[1.02] transition-transform disabled:opacity-60 disabled:scale-100 cursor-pointer"
                     style={{ background: "linear-gradient(135deg, #f59e0b, #d97706)" }}
                   >
-                    {status === "submitting" ? "⏳ Submitting..." : "🚀 Submit Enquiry"}
+                    {status === "submitting" ? "⏳ Syncing to CRM..." : "🚀 Submit Enquiry"}
                   </button>
 
                   <p className="text-center text-xs" style={{ color: "#a8a29e" }}>
