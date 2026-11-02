@@ -11,6 +11,7 @@ import {
 } from "./admission-knowledge";
 import { db, ensureAuth } from "./firebase";
 import { pushEnquiryToSkool24 } from "./skool24";
+import { createFirestoreDocument, fetchFirestoreCollection, updateFirestoreDocument } from "./firebase-rest";
 import {
   collection,
   addDoc,
@@ -289,19 +290,24 @@ export async function submitAdmissionLead(data: LeadSubmissionData) {
 
     let docId = "";
 
-    // 1. Save to Firestore collection "admissions_leads" with timeout & auth protection
+    // 1. Save to Firestore collection "admissions_leads" (Ultra-fast HTTPS REST + SDK fallback)
     try {
-      await ensureAuth();
-      const firestoreTimeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Firestore write timed out")), 10000)
-      );
-      const docRef = await Promise.race([
-        addDoc(collection(db, "admissions_leads"), leadPayload),
-        firestoreTimeout,
-      ]);
-      docId = docRef.id;
-    } catch (firestoreErr: any) {
-      console.warn("Firestore lead persistence warning:", firestoreErr.message);
+      const restRes = await createFirestoreDocument("admissions_leads", {
+        ...leadPayload,
+        createdAt: new Date().toISOString(),
+      });
+      if (restRes.id) {
+        docId = restRes.id;
+      }
+    } catch (restErr: any) {
+      console.warn("REST persistence fallback note:", restErr.message);
+      try {
+        await ensureAuth();
+        const docRef = await addDoc(collection(db, "admissions_leads"), leadPayload);
+        docId = docRef.id;
+      } catch (sdkErr: any) {
+        console.warn("Firestore SDK write note:", sdkErr.message);
+      }
     }
 
     // 2. Forward to Webhook in background (optional/resilient)
@@ -350,8 +356,7 @@ export async function submitAdmissionLead(data: LeadSubmissionData) {
     // 4. Update the Firestore record with Skool24 sync details
     if (docId) {
       try {
-        const { updateDoc, doc: fsDoc } = await import("firebase/firestore");
-        await updateDoc(fsDoc(db, "admissions_leads", docId), {
+        await updateFirestoreDocument("admissions_leads", docId, {
           skool24Synced: skool24Result?.success ?? false,
           skool24LeadId: skool24LeadId || null,
           storedInPortal: true,
@@ -386,24 +391,11 @@ export async function submitAdmissionLead(data: LeadSubmissionData) {
  */
 export async function findExistingLeads(phone: string): Promise<any[]> {
   try {
-    const cleanPhone = phone.trim().replace(/\D/g, "");
+    const cleanPhone = phone.trim().replace(/\D/g, "").slice(-10);
     if (!/^[6-9]\d{9}$/.test(cleanPhone)) return [];
 
-    await ensureAuth();
-    const q = query(
-      collection(db, "admissions_leads"),
-      where("phone", "==", cleanPhone),
-      limit(5)
-    );
-
-    const firestoreTimeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Timeout")), 3000)
-    );
-
-    const snap = await Promise.race([getDocs(q), firestoreTimeout]);
-    if (snap.empty) return [];
-
-    return snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+    const all = await fetchFirestoreCollection("admissions_leads");
+    return all.filter((l) => (l.phone || "").replace(/\D/g, "").slice(-10) === cleanPhone);
   } catch (err) {
     console.warn("findExistingLeads warning:", err);
     return [];
@@ -418,31 +410,27 @@ export async function checkApplicationStatus(queryParam: string) {
     const clean = queryParam.trim();
     if (!clean) return { found: false, message: "Please provide a phone number or reference number." };
 
-    await ensureAuth();
-    let q;
-    if (clean.toUpperCase().startsWith("SMS-ADM")) {
-      q = query(collection(db, "admissions_leads"), where("referenceNumber", "==", clean), limit(1));
-    } else {
-      q = query(collection(db, "admissions_leads"), where("phone", "==", clean), limit(3));
-    }
+    const all = await fetchFirestoreCollection("admissions_leads");
+    const cleanLower = clean.toLowerCase();
+    const cleanPhone = clean.replace(/\D/g, "").slice(-10);
 
-    const firestoreTimeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Firestore query timed out")), 4000)
-    );
+    const matches = all.filter((r) => {
+      if (r.referenceNumber && r.referenceNumber.toLowerCase() === cleanLower) return true;
+      if (cleanPhone && (r.phone || "").replace(/\D/g, "").slice(-10) === cleanPhone) return true;
+      return false;
+    });
 
-    const snap = await Promise.race([getDocs(q), firestoreTimeout]);
-    if (snap.empty) {
+    if (matches.length === 0) {
       return {
         found: false,
         message: `No application found for '${clean}'. Please verify your phone number or reference number.`,
       };
     }
 
-    const records = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
     return {
       found: true,
-      records,
-      message: `Found ${records.length} record(s).`,
+      records: matches,
+      message: `Found ${matches.length} record(s).`,
     };
   } catch (err: any) {
     console.warn("Status check warning:", err.message);

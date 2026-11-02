@@ -12,7 +12,7 @@ import {
   updateDoc,
   deleteDoc,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, ensureAuth } from "@/lib/firebase";
 import { generateLeadMessage } from "@/lib/whatsapp";
 
 export interface AdmissionLead {
@@ -20,6 +20,7 @@ export interface AdmissionLead {
   referenceNumber: string;
   studentName: string;
   parentName: string;
+  fatherName?: string;
   motherName?: string;
   phone: string;
   grade: string;

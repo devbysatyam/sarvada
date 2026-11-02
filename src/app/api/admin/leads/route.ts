@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, ensureAuth } from "@/lib/firebase";
+import { fetchFirestoreCollection } from "@/lib/firebase-rest";
 import {
   collection,
   getDocs,
@@ -27,16 +28,34 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const statusFilter = searchParams.get("status") || "all";
 
-    const leadsQuery = query(
-      collection(db, "admissions_leads"),
-      orderBy("createdAt", "desc")
-    );
+    let allLeads: any[] = [];
+    try {
+      allLeads = await fetchFirestoreCollection("admissions_leads");
+    } catch (e: any) {
+      console.warn("REST leads fetch note:", e.message);
+    }
 
-    const snapshot = await getDocs(leadsQuery);
-    const allLeads = snapshot.docs.map((d) => ({
-      id: d.id,
-      ...(d.data() as any),
-    }));
+    if (!allLeads || allLeads.length === 0) {
+      try {
+        await ensureAuth();
+        const snapshot = await getDocs(collection(db, "admissions_leads"));
+        allLeads = snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+      } catch (err: any) {
+        console.warn("Fallback getDocs note:", err.message);
+      }
+    }
+
+    allLeads = (allLeads || [])
+      .filter((l: any) => l.studentName || l.phone || l.referenceNumber)
+      .sort((a: any, b: any) => {
+        const timeA = a.createdAt?.seconds
+          ? a.createdAt.seconds * 1000
+          : new Date(a.createdDate || a.createdAt || 0).getTime();
+        const timeB = b.createdAt?.seconds
+          ? b.createdAt.seconds * 1000
+          : new Date(b.createdDate || b.createdAt || 0).getTime();
+        return timeB - timeA;
+      });
 
     // Calculate Dashboard Analytics
     const total = allLeads.length;
