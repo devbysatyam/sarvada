@@ -192,14 +192,15 @@ function isHindiOrHinglish(text: string): boolean {
 function cleanExtractedName(str: string): string {
   if (!str) return "";
   return str
-    .replace(/\b(?:student|child|ba[ch]{1,5}[eaio]?|beta|beti|name|naam|is|hai|hain|ka|ki|ke|ko|se|mera|meri|mere|shri|smt|mr|mrs|dr|and|aur|date\s*of\s*birth|dob|class|grade|admission|dakhila|father|mother|parent|pita|mata|papa|mummy|of)\b/gi, " ")
+    .replace(/\b(?:student|child|ba[ch]{1,5}[eaio]?|beta|beti|name|naam|is|hai|hain|ka|ki|ke|ko|se|mera|meri|mere|shri|smt|mr|mrs|dr|and|aur|date\s*of\s*birth|dob|class|grade|admission|dakhila|father|mother|parent|pita|mata|papa|mummy|of|phone|mobile|mob|no|num|number)\b/gi, " ")
     .replace(/[0-9:,.\/#!$%^&*;:{}=\-_`~()]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
 // ─────────────────────────────────────────────────────────────
-// ROBUST ENTITY EXTRACTION — handles compound Hindi/English
+// SEMANTIC AGENTIC CLAUSE PARSER & ENTITY BINDER
+// Eliminates brittle regexes by parsing labeled spans and multi-field inputs
 // ─────────────────────────────────────────────────────────────
 function extractEntities(text: string, currentCtx: AdmissionJourneyContext): Partial<AdmissionJourneyContext> {
   const updates: Partial<AdmissionJourneyContext> = {};
@@ -208,7 +209,32 @@ function extractEntities(text: string, currentCtx: AdmissionJourneyContext): Par
     updates.language = "hi";
   }
 
-  // ── 1. Grade extraction ──────────────────────────────────
+  // 1. Direct Phone Extraction (matches with space, +91, 0)
+  const phoneMatch = text.match(/(?:(?:\+?91|0)?\s*)?([6-9]\d{9})\b/);
+  if (phoneMatch) {
+    updates.phone = phoneMatch[1];
+  }
+
+  // 2. Direct DOB Extraction
+  const dateMatch = text.match(/\b(\d{1,2})[-/](\d{1,2})[-/](\d{4})\b/) || text.match(/\b(\d{4})[-/](\d{1,2})[-/](\d{1,2})\b/);
+  if (dateMatch) {
+    if (dateMatch[1].length === 4) {
+      updates.dob = dateMatch[0].replace(/\//g, "-");
+    } else {
+      const day = dateMatch[1].padStart(2, "0");
+      const month = dateMatch[2].padStart(2, "0");
+      const year = dateMatch[3];
+      updates.dob = `${year}-${month}-${day}`;
+    }
+  }
+
+  // 3. Direct Reference Number Extraction
+  const refMatch = text.match(/\bSMS-ADM-\d{4}-\d{4,5}\b/i);
+  if (refMatch) {
+    updates.referenceNumber = refMatch[0].toUpperCase();
+  }
+
+  // 4. Grade / Class Extraction
   if (/nursery|pre-school|kg-1|नर्सरी/i.test(text)) {
     updates.grade = "Nursery";
   } else if (/\blkg\b|l\.k\.g|एलकेजी/i.test(text)) {
@@ -218,7 +244,7 @@ function extractEntities(text: string, currentCtx: AdmissionJourneyContext): Par
   } else if (/\b(?:class\s*1(?:st)?|1st\s*(?:class)?|first\s*class|कक्षा\s*1|पहली\s*कक्षा)\b/i.test(text)) {
     updates.grade = "Class 1st";
   } else {
-    const gradeMatch = text.match(/\b(?:class\s*([2-9])(?:nd|rd|th)?|([2-9])(?:nd|rd|th)\s*(?:class)?|([2-9])\s*class|कक्षा\s*([2-9])|([2-9])\s*वीं)\b/i);
+    const gradeMatch = text.match(/\b(?:class\s*([2-9]|1[0-2])(?:nd|rd|th)?|([2-9]|1[0-2])(?:nd|rd|th)\s*(?:class)?|([2-9]|1[0-2])\s*class|कक्षा\s*([2-9]|1[0-2])|([2-9]|1[0-2])\s*वीं)\b/i);
     if (gradeMatch) {
       const gNum = parseInt(gradeMatch[1] || gradeMatch[2] || gradeMatch[3] || gradeMatch[4] || gradeMatch[5], 10);
       const suffix = gNum === 2 ? "nd" : gNum === 3 ? "rd" : "th";
@@ -243,123 +269,142 @@ function extractEntities(text: string, currentCtx: AdmissionJourneyContext): Par
     }
   }
 
-  // ── 2. DOB extraction ────────────────────────────────────
-  const dateMatch = text.match(/\b(\d{1,2})[-/](\d{1,2})[-/](\d{4})\b/) || text.match(/\b(\d{4})[-/](\d{1,2})[-/](\d{1,2})\b/);
-  if (dateMatch) {
-    if (dateMatch[1].length === 4) {
-      updates.dob = dateMatch[0].replace(/\//g, "-");
-    } else {
-      const day = dateMatch[1].padStart(2, "0");
-      const month = dateMatch[2].padStart(2, "0");
-      const year = dateMatch[3];
-      updates.dob = `${year}-${month}-${day}`;
+  // 5. Locality / Address Extraction
+  const localityPatterns = [
+    { pattern: /\b(?:karawal\s*nagar|karaawal\s*nagar|karwal\s*nagar|करावल\s*नगर)\b/i, name: "Karawal Nagar" },
+    { pattern: /\b(?:sadatpur|सादतपुर|सादतपर)\b/i, name: "Sadatpur Extension" },
+    { pattern: /\b(?:khajuri|khajoori|खजूरी)\b/i, name: "Khajuri Khas" },
+    { pattern: /\b(?:mustafabad|मुस्तफाबाद)\b/i, name: "Mustafabad" },
+    { pattern: /\b(?:shiv\s*vihar|शिव\s*विहार)\b/i, name: "Shiv Vihar" },
+    { pattern: /\b(?:bhajanpura|भजनपुरा)\b/i, name: "Bhajanpura" },
+    { pattern: /\b(?:yamuna\s*vihar|यमुना\s*विहार)\b/i, name: "Yamuna Vihar" },
+    { pattern: /\b(?:tukmirpur|तुकमीरपुर)\b/i, name: "Tukmirpur" },
+    { pattern: /\b(?:sonia\s*vihar|सोनिया\s*विहार)\b/i, name: "Sonia Vihar" },
+    { pattern: /\b(?:sabhapur|सभापुर)\b/i, name: "Sabhapur" },
+    { pattern: /\b(?:dayalpur|दयालपुरा|दयालपर)\b/i, name: "Dayalpur" },
+    { pattern: /\b(?:gokalpuri|गोकलपुरी)\b/i, name: "Gokalpuri" },
+    { pattern: /\b(?:harsh\s*vihar|हर्ष\s*विहार)\b/i, name: "Harsh Vihar" },
+    { pattern: /\b(?:johripur|जोहरीपुर)\b/i, name: "Johripur" },
+    { pattern: /\b(?:maujpur|मौजपुर)\b/i, name: "Maujpur" },
+  ];
+  for (const loc of localityPatterns) {
+    if (loc.pattern.test(text)) {
+      updates.address = loc.name;
+      break;
     }
   }
 
-  // ── 3. Phone number extraction ───────────────────────────
-  const cleanDigits = text.replace(/[\s\-\(\)\+]/g, "");
-  const phoneMatch = cleanDigits.match(/(?:(?:0|91)?)([6-9]\d{9})\b/);
-  if (phoneMatch) {
-    updates.phone = phoneMatch[1];
-  }
+  // 6. SEMANTIC KEYED-LABEL PARSER: Handles compound multi-field inputs in ANY order
+  // e.g. "NAME SATYAM MISHRA ADRESS KARWAL NAGAR FATHER NAME MAHENDRA MISHRA , MOTHER NAME RANJANA MISHRA AND NUMBER 7276520057"
+  const labelAnchors = [
+    { target: "fatherName", regex: /\b(?:father(?:\s*name|\s*ka\s*naam)?|pita(?:\s*ka\s*naam)?|papa(?:\s*ka\s*naam)?)\b\s*[:=-]?/i },
+    { target: "motherName", regex: /\b(?:mother(?:\s*name|\s*ka\s*naam)?|mata(?:\s*ka\s*naam)?|mummy(?:\s*ka\s*naam)?)\b\s*[:=-]?/i },
+    { target: "studentName", regex: /\b(?:name\s*of\s*student|student(?:\s*name|\s*ka\s*naam)?|child(?:\s*name|\s*ka\s*naam)?|name\s*of\s*child|bacche\s*ka\s*naam|chhatra\s*ka\s*naam|beta\s*ka\s*naam|beti\s*ka\s*naam)\b\s*[:=-]?/i },
+    { target: "address", regex: /\b(?:adress|address|pata|rehta\s*hu|rehte\s*hai|location|area)\b\s*[:=-]?/i },
+    { target: "phone", regex: /\b(?:number|phone|mobile|mob|contact|no)\b\s*[:=-]?/i },
+    { target: "dob", regex: /\b(?:date\s*of\s*birth|dob|janam\s*tithi)\b\s*[:=-]?/i },
+    { target: "directive", regex: /\b(?:aur\s*kuch\s*chahiye|proces\s*karo|process\s*karo|agla|kya\s*dena\s*hoga|kaise\s*hoga)\b/i },
+    // Standalone "name" or "naam" anchor (ONLY if not part of father/mother/child name)
+    { target: "studentNameFallback", regex: /(?<!\b(?:father|mother|pita|papa|mata|mummy|child|student|bacche)\s*)\b(?:name|naam)\b\s*[:=-]?/i }
+  ];
 
-  // ── 4. Reference Number ──────────────────────────────────
-  const refMatch = text.match(/\bSMS-ADM-\d{4}-\d{4,5}\b/i);
-  if (refMatch) {
-    updates.referenceNumber = refMatch[0].toUpperCase();
-  }
+  const occurrences: { target: string; start: number; end: number; matchedText: string }[] = [];
+  const occupiedSpans: { start: number; end: number }[] = [];
 
-  // Flexible pattern for "bacche/bachhe/baccche/bache" variations
-  const bacchePattern = "(?:ba[ch]{1,5}[eaio]?)";
-
-  // ── 5. Father / Mother / Parent Name ─────────────────────
-  const fatherRegex = new RegExp(
-    "(?:\\bfather(?:\\s*(?:name|ka\\s*naam))?|\\bpapa(?:\\s*ka\\s*naam)?|\\bpita(?:\\s*ka\\s*naam)?|\\bparent(?:\\s*name)?)\\s*[:=-]?\\s*([A-Za-z\\s]{2,35})" +
-    "(?=(?:\\b(?:and|aur|mother|mata|mummy|dob|date\\s*of\\s*birth|phone|mobile|student|child|" + bacchePattern + "|class)\\b|$|[0-9]{4,}))",
-    "i"
-  );
-  const fMatch = text.match(fatherRegex);
-  if (fMatch) {
-    const fn = cleanExtractedName(fMatch[1]);
-    if (fn.length >= 2) {
-      updates.parentName = fn;
-      updates.fatherName = fn;
+  for (const anchor of labelAnchors) {
+    let match;
+    const globalRegex = new RegExp(anchor.regex.source, "gi");
+    while ((match = globalRegex.exec(text)) !== null) {
+      const start = match.index;
+      const end = match.index + match[0].length;
+      
+      const overlaps = occupiedSpans.some(s => (start >= s.start && start < s.end) || (end > s.start && end <= s.end));
+      if (!overlaps) {
+        occupiedSpans.push({ start, end });
+        occurrences.push({
+          target: anchor.target === "studentNameFallback" ? "studentName" : anchor.target,
+          start,
+          end,
+          matchedText: match[0]
+        });
+      }
     }
   }
 
-  const motherRegex = new RegExp(
-    "(?:\\bmother(?:\\s*(?:name|ka\\s*naam))?|\\bmata(?:\\s*ka\\s*naam)?|\\bmummy(?:\\s*ka\\s*naam)?)\\s*[:=-]?\\s*([A-Za-z\\s]{2,35})" +
-    "(?=(?:\\b(?:and|aur|father|papa|pita|dob|date\\s*of\\s*birth|phone|mobile|student|child|" + bacchePattern + "|class)\\b|$|[0-9]{4,}))",
-    "i"
-  );
-  const mMatch = text.match(motherRegex);
-  if (mMatch) {
-    const mn = cleanExtractedName(mMatch[1]);
-    if (mn.length >= 2) {
-      updates.motherName = mn;
+  occurrences.sort((a, b) => a.start - b.start);
+
+  for (let i = 0; i < occurrences.length; i++) {
+    const current = occurrences[i];
+    const nextStart = i + 1 < occurrences.length ? occurrences[i + 1].start : text.length;
+    const rawVal = text.substring(current.end, nextStart).trim();
+
+    const cleanVal = rawVal
+      .replace(/^[,\-:=]+|[,\-:=]+$/g, "")
+      .replace(/\b(?:and|aur|hai|hain|is|to|bhi|ka|ki|ke)\b$/gi, "")
+      .trim();
+
+    if (current.target === "studentName" && !updates.studentName) {
+      const sanitized = cleanVal.replace(/[0-9]/g, "").replace(/\s+/g, " ").trim();
+      if (sanitized.length >= 2 && !sanitized.toLowerCase().includes("sarvada")) {
+        updates.studentName = sanitized;
+      }
+    } else if (current.target === "fatherName" && !updates.fatherName) {
+      const sanitized = cleanVal.replace(/[0-9]/g, "").replace(/\s+/g, " ").trim();
+      if (sanitized.length >= 2) {
+        updates.fatherName = sanitized;
+        updates.parentName = sanitized;
+      }
+    } else if (current.target === "motherName" && !updates.motherName) {
+      const sanitized = cleanVal.replace(/[0-9]/g, "").replace(/\s+/g, " ").trim();
+      if (sanitized.length >= 2) {
+        updates.motherName = sanitized;
+      }
+    } else if (current.target === "address" && !updates.address) {
+      if (cleanVal.length >= 3) {
+        updates.address = cleanVal;
+      }
     }
   }
 
-  // ── 6. Student / Child Name ──────────────────────────────
-  // Pattern A (forward label): "name of student Satyam Mishra" or "bacche ka naam Satyam" or "mera beta Aarav"
-  const studentForwardRegex = new RegExp(
-    "(?:\\b(?:name\\s*of\\s*student|student\\s*(?:name)?|child(?:\\s*name)?|name\\s*of\\s*child|" + bacchePattern + "(?:\\s*ka)?\\s*naam|beta(?:\\s*ka)?\\s*naam|beti(?:\\s*ka)?\\s*naam|chhatra(?:\\s*ka)?\\s*naam|mera\\s+beta|meri\\s+beti))\\s*[:=-]?\\s*([A-Za-z\\s]{2,35})" +
-    "(?=(?:\\b(?:and|aur|father|papa|pita|mother|mata|mummy|dob|date\\s*of\\s*birth|phone|mobile|class|grade|admission)\\b|$|[0-9]{4,}))",
-    "i"
-  );
-  const sfMatch = text.match(studentForwardRegex);
-  if (sfMatch) {
-    const sn = cleanExtractedName(sfMatch[1]);
-    if (sn.length >= 2 && !sn.toLowerCase().includes("sarvada")) {
-      updates.studentName = sn;
-    }
-  }
-
-  // Pattern B (backward label): "SATYAM MISHRA BACCCHE KA NAAM"
+  // 7. Backward label checks (e.g. "SATYAM MISHRA BACCCHE KA NAAM", "MAHENDRA MISHRA PITA KA NAAM")
   if (!updates.studentName) {
-    const studentBackwardRegex = new RegExp(
-      "([A-Za-z\\s]{2,35})\\s+(?:" + bacchePattern + "(?:\\s*ka)?\\s*naam|student\\s*(?:ka\\s*)?name|child\\s*(?:ka\\s*)?name|beta\\s*ka\\s*naam|beti\\s*ka\\s*naam|chhatra\\s*ka\\s*naam)\\b",
-      "i"
-    );
-    const sbMatch = text.match(studentBackwardRegex);
-    if (sbMatch) {
-      const sn = cleanExtractedName(sbMatch[1]);
-      if (sn.length >= 2 && !sn.toLowerCase().includes("sarvada")) {
-        updates.studentName = sn;
+    const backMatch = text.match(/([A-Za-z\s]{2,30})\s+(?:bacche\s*ka\s*naam|student\s*name|chhatra\s*ka\s*naam)/i);
+    if (backMatch && !backMatch[1].toLowerCase().includes("sarvada")) {
+      updates.studentName = backMatch[1].trim();
+    }
+  }
+  if (!updates.parentName && !updates.fatherName) {
+    const backMatch = text.match(/([A-Za-z\s]{2,30})\s+(?:pita\s*ka\s*naam|father\s*name|papa\s*ka\s*naam)/i);
+    if (backMatch) {
+      updates.fatherName = backMatch[1].trim();
+      updates.parentName = backMatch[1].trim();
+    }
+  }
+
+  // 8. Conversational multi-turn name input (fallback when user just provides name without labels)
+  if (!updates.studentName || !updates.parentName) {
+    const textWithoutPhone = text
+      .replace(/(?:(?:\+?91|0)?\s*)?[6-9]\d{9}\b/g, " ")
+      .replace(/\b(?:phone|mobile|mob|contact|number|no|num)\b/gi, " ")
+      .replace(/[0-9:,.\/#!$%^&*;:{}=\-_`~()]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const words = textWithoutPhone.split(/\s+/).filter(Boolean);
+    const isCommand = /admission|eligib|docu|fee|timing|address|school|nursery|lkg|ukg|class|hello|hi|namaste|yes|no|haan|nahi|chahiye|lena|karna|karwana|kaise|kya|aur|kuch|batao|proces|agla/i.test(textWithoutPhone);
+
+    if (!isCommand && words.length >= 1 && words.length <= 4 && textWithoutPhone.length >= 2 && textWithoutPhone.length <= 40 && !textWithoutPhone.toLowerCase().includes("sarvada")) {
+      if (!updates.studentName && !currentCtx.studentName) {
+        updates.studentName = textWithoutPhone;
+      } else if (!updates.parentName && !currentCtx.parentName && textWithoutPhone.toLowerCase() !== (updates.studentName || currentCtx.studentName || "").toLowerCase()) {
+        updates.parentName = textWithoutPhone;
+        updates.fatherName = textWithoutPhone;
       }
     }
   }
 
-  // Pattern C: Generic "naam X" / "name X"
-  if (!updates.studentName && !updates.parentName) {
-    const genericNameRegex = /(?:\bname\b|\bnaam\b)\s*[:=-]?\s*([A-Za-z\s]{2,35})(?=(?:\b(?:and|aur|dob|date\s*of\s*birth|phone|mobile|class)\b|$|[0-9]{4,}))/i;
-    const gMatch = text.match(genericNameRegex);
-    if (gMatch) {
-      const gn = cleanExtractedName(gMatch[1]);
-      if (gn.length >= 2 && !gn.toLowerCase().includes("sarvada")) {
-        if (!currentCtx.studentName) updates.studentName = gn;
-        else if (!currentCtx.parentName) updates.parentName = gn;
-      }
-    }
-  }
-
-  // ── 7. Conversational / Standalone name during COLLECTING_DETAILS ──
-  if (!updates.studentName && !updates.parentName && !phoneMatch && !refMatch) {
-    const trimmed = text.trim();
-    const isCommand = /admission|eligib|docu|fee|timing|address|school|nursery|lkg|ukg|class|hello|hi|namaste|yes|no|haan|nahi/i.test(trimmed);
-    const words = trimmed.split(/\s+/);
-    if (!isCommand && words.length >= 1 && words.length <= 4 && !/^\d+$/.test(trimmed) && trimmed.length >= 2 && trimmed.length <= 50) {
-      const candidate = cleanExtractedName(trimmed);
-      if (candidate.length >= 2 && !candidate.toLowerCase().includes("sarvada")) {
-        if (currentCtx.stage === "COLLECTING_DETAILS") {
-          if (!currentCtx.studentName) {
-            updates.studentName = candidate;
-          } else if (!currentCtx.parentName) {
-            updates.parentName = candidate;
-          }
-        }
-      }
-    }
+  if (!updates.parentName && updates.fatherName) {
+    updates.parentName = updates.fatherName;
   }
 
   return updates;
@@ -455,8 +500,8 @@ export async function POST(req: Request) {
     // ─────────────────────────────────────────────────────────────
     // 1. GEMINI LIVE MODEL WITH TOOL CALLING & FALLBACK LIST
     // ─────────────────────────────────────────────────────────────
-    if (apiKey && apiKey.length > 20 && (apiKey.startsWith("AIzaSy") || !apiKey.startsWith("AQ."))) {
-      const candidateModels = ["gemini-1.5-flash"];
+    if (apiKey && apiKey.length > 10) {
+      const candidateModels = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash"];
       for (const modelName of candidateModels) {
         try {
           const ai = new GoogleGenAI({ apiKey });
@@ -473,7 +518,7 @@ export async function POST(req: Request) {
             parts: [{ text: trimmedMsg }],
           });
 
-          const withTimeout = <T>(promise: Promise<T>, ms: number = 3500): Promise<T> =>
+          const withTimeout = <T>(promise: Promise<T>, ms: number = 2500): Promise<T> =>
             Promise.race([
               promise,
               new Promise<T>((_, reject) =>
@@ -566,7 +611,9 @@ export async function POST(req: Request) {
           });
         } catch (err: any) {
           console.warn(`Gemini model ${modelName} note:`, err.message);
-          // Continues to next candidate model or falls back to bilingual continuity router
+          if (err.message && (err.message.includes('UNAUTHENTICATED') || err.message.includes('API key not valid') || err.message.includes('401') || err.message.includes('ACCESS_TOKEN_TYPE_UNSUPPORTED'))) {
+            break;
+          }
         }
       }
     }
@@ -631,16 +678,83 @@ export async function POST(req: Request) {
       }
     }
 
-    // ROUTE 1: REGISTRATION & LEAD CAPTURE STATE MACHINE (Step-by-step with Checking Filter)
+    // Intent detections
+    const isAskingProcedure = /kaise\s*hoga|kaise\s*hota\s*hai|process|procedure|steps|kaise\s*kare|kaise\s*karwaye|tarika|process\s*kya\s*hai|admission\s*process/i.test(lower);
+    const isAskingDocuments = /kya\s*(?:kya\s*)?dena\s*hoga|kya\s*dena\s*hoga|kya\s*chahiye|documents|dastavez|kagaz|papers|tc|marksheet|apaar|transfer\s*certificate/i.test(lower);
+    const isAskingFees = /fees?|kitna\s*lagega|kharcha|charges|shulk|fee\s*structure/i.test(lower);
+    const hasLeadProgress = Boolean(currentCtx.studentName || currentCtx.phone || currentCtx.parentName || currentCtx.fatherName);
+
+    // ROUTE 1: COMPOUND ADMISSION INQUIRY (Turn 1: Grade + Locality + Procedure + Documents)
+    if (
+      currentCtx.grade &&
+      !currentCtx.referenceNumber &&
+      !hasLeadProgress &&
+      (isAskingProcedure || isAskingDocuments || Boolean(currentCtx.address) || lower.includes("admission") || lower.includes("dakhila"))
+    ) {
+      currentCtx.stage = "COLLECTING_DETAILS";
+      const grade = currentCtx.grade;
+      const docData = getRequiredDocuments(grade);
+      executedTools.push({ name: "getRequiredDocuments", args: { grade }, result: docData });
+
+      if (isHindi) {
+        let reply = `नमस्ते! 🙏 **सर्वदा मॉडर्न सेकेंडरी स्कूल** (CBSE 1104340) में **${grade}** में एडमिशन के लिए आपका हार्दिक स्वागत है।\n\n`;
+
+        if (currentCtx.address) {
+          reply += `📍 **विद्यालय का स्थान (Location):**\nहमारा विद्यालय **सादतपुर एक्सटेंशन, करावल नगर रोड (सुक्कार बाजार, गली नं. 1)** में ही स्थित है, जो **${currentCtx.address}** के बिल्कुल निकट है।\n\n`;
+        }
+
+        reply += `### 1️⃣ एडमिशन प्रक्रिया (Admission Procedure — कैसे होगा?):\n`;
+        reply += `1. **पंजीकरण:** छात्र व अभिभावक का प्राथमिक विवरण दर्ज कर सीट इनक्वायरी बनाई जाती है।\n`;
+        reply += `2. **दस्तावेज सत्यापन:** आप विद्यालय कैंपस आकर मूल दस्तावेजों की जांच करवाते हैं।\n`;
+        reply += `3. **प्रवेश पुष्टि व रोल नंबर:** सत्यापन के बाद फॉर्म सबमिट कर छात्र का प्रवेश सुनिश्चित कर दिया जाता है।\n\n`;
+
+        reply += `### 2️⃣ ${grade} के लिए जरूरी दस्तावेज (Documents — क्या-क्या देना होगा?):\n`;
+        docData.documents.forEach((d, i) => {
+          reply += `${i + 1}. **${d.title}**\n`;
+        });
+
+        reply += `\nप्रक्रिया शुरू करने के लिए कृपया **बच्चे का नाम** और अपना **10 अंकों का मोबाइल नंबर** बताएं ताकि हमारे एडमिशन विभाग से आपकी सीट सुरक्षित की जा सके:`;
+
+        return NextResponse.json({
+          reply,
+          sessionContext: currentCtx,
+          suggestedActions: ["छात्र का नाम दर्ज करें", "उम्र पात्रता जांचें", "स्कूल का समय व पता"],
+          executedTools,
+        });
+      }
+
+      let reply = `Namaste! 🙏 Welcome to **Sarvada Modern Secondary School** (CBSE 1104340) for **${grade}** admissions.\n\n`;
+      if (currentCtx.address) {
+        reply += `📍 **Campus Proximity:**\nOur campus is situated on **Sadatpur Extension, Karawal Nagar Road**, right near **${currentCtx.address}**.\n\n`;
+      }
+      reply += `### 1️⃣ Admission Procedure (Step-by-step):\n`;
+      reply += `1. **Inquiry & Registration:** Record applicant student and parent details.\n`;
+      reply += `2. **Campus Visit & Verification:** Verify original documents at our admissions desk.\n`;
+      reply += `3. **Enrollment Confirmation:** Complete enrollment and admission confirmation.\n\n`;
+      reply += `### 2️⃣ Required Documents for ${grade}:\n`;
+      docData.documents.forEach((d, i) => {
+        reply += `${i + 1}. **${d.title}** — ${d.desc}\n`;
+      });
+      reply += `\nTo begin registration, please share your **Child's Full Name** and **10-digit Mobile Number**:`;
+
+      return NextResponse.json({
+        reply,
+        sessionContext: currentCtx,
+        suggestedActions: ["Register Admission Inquiry", "Check Age Eligibility", "School Timings & Location"],
+        executedTools,
+      });
+    }
+
+    // ROUTE 2: REGISTRATION & LEAD CAPTURE STATE MACHINE (Handles all multi-field inputs and multi-turn)
     if (
       currentCtx.stage === "COLLECTING_DETAILS" ||
+      hasLeadProgress ||
       lower.includes("register") ||
       lower.includes("apply") ||
       lower.includes("admission lena") ||
       lower.includes("form bharna") ||
       lower.includes("dakhila lena") ||
-      (lower.includes("yes") && currentCtx.stage === "DOCUMENTS_REVIEWED") ||
-      (currentCtx.phone && !currentCtx.referenceNumber && Boolean(currentCtx.studentName))
+      (lower.includes("yes") && currentCtx.stage === "DOCUMENTS_REVIEWED")
     ) {
       currentCtx.stage = "COLLECTING_DETAILS";
 
@@ -648,10 +762,10 @@ export async function POST(req: Request) {
       if (!currentCtx.grade) {
         return NextResponse.json({
           reply: isHindi
-            ? `दाखिला पंजीकरण शुरू करने के लिए कृपया बताएं कि आप **किस कक्षा (Class)** में एडमिशन लेना चाहते हैं? (जैसे: Nursery, LKG, UKG, Class 1st, Class 3rd):`
-            : `To begin registration, please specify which **Class / Grade** you are seeking admission for (e.g. Nursery, LKG, UKG, Class 1st, Class 3rd):`,
+            ? `दाखिला पंजीकरण शुरू करने के लिए कृपया बताएं कि आप **किस कक्षा (Class)** में एडमिशन लेना चाहते हैं? (जैसे: Nursery, LKG, UKG, Class 1st, Class 6th, Class 7th):`
+            : `To begin registration, please specify which **Class / Grade** you are seeking admission for (e.g. Nursery, LKG, UKG, Class 1st, Class 6th, Class 7th):`,
           sessionContext: currentCtx,
-          suggestedActions: isHindi ? ["Nursery", "Class 1st", "Class 3rd"] : ["Nursery", "Class 1st", "Class 3rd"],
+          suggestedActions: isHindi ? ["Nursery", "Class 1st", "Class 6th"] : ["Nursery", "Class 1st", "Class 6th"],
           executedTools,
         });
       }
@@ -669,13 +783,17 @@ export async function POST(req: Request) {
       }
 
       // Step C: Missing Parent Name
-      if (!currentCtx.parentName) {
+      if (!currentCtx.parentName && !currentCtx.fatherName) {
+        let ackText = `छात्र का नाम **${currentCtx.studentName}**`;
+        if (currentCtx.phone) {
+          ackText += ` और मोबाइल नंबर **${currentCtx.phone}**`;
+        }
         return NextResponse.json({
           reply: isHindi
-            ? `छात्र का नाम नोट किया गया: **${currentCtx.studentName}**।\n\n2. अब कृपया **माता या पिता का पूरा नाम (Father's or Mother's Full Name)** बताएं:`
-            : `Noted student name: **${currentCtx.studentName}**.\n\n2. Please provide the **Father's or Mother's Full Name**:`,
+            ? `बहुत बढ़िया! ${ackText} नोट कर लिया गया है।\n\nकृपया **पिता या माता का पूरा नाम (Father's or Mother's Full Name)** बताएं ताकि आपका एडमिशन फॉर्म पूरा हो सके:`
+            : `Great! Noted student **${currentCtx.studentName}**${currentCtx.phone ? ` and mobile **${currentCtx.phone}**` : ""}.\n\nPlease provide the **Father's or Mother's Full Name**:`,
           sessionContext: currentCtx,
-          suggestedActions: isHindi ? ["अभिभावक का नाम लिखें"] : ["Enter Parent Name"],
+          suggestedActions: isHindi ? ["पिता/माता का नाम लिखें"] : ["Enter Parent Name"],
           executedTools,
         });
       }
@@ -684,8 +802,8 @@ export async function POST(req: Request) {
       if (!currentCtx.phone || !/^[6-9]\d{9}$/.test(currentCtx.phone)) {
         return NextResponse.json({
           reply: isHindi
-            ? `छात्र: **${currentCtx.studentName}** | अभिभावक: **${currentCtx.parentName}**\n\n3. एडमिशन अपडेट और स्कूल वेरिफिकेशन के लिए कृपया अपना **10 अंकों का मोबाइल नंबर** दर्ज करें:`
-            : `Student: **${currentCtx.studentName}** | Parent: **${currentCtx.parentName}**\n\n3. Please enter your **10-digit Mobile Number** for admission updates & verification:`,
+            ? `छात्र: **${currentCtx.studentName}** | अभिभावक: **${currentCtx.fatherName || currentCtx.parentName}**\n\nएडमिशन अपडेट और स्कूल वेरिफिकेशन के लिए कृपया अपना **10 अंकों का मोबाइल नंबर** दर्ज करें:`
+            : `Student: **${currentCtx.studentName}** | Parent: **${currentCtx.fatherName || currentCtx.parentName}**\n\nPlease enter your **10-digit Mobile Number** for admission updates & verification:`,
           sessionContext: currentCtx,
           suggestedActions: isHindi ? ["10 अंकों का मोबाइल नंबर दर्ज करें"] : ["Enter 10-digit Mobile Number"],
           executedTools,
@@ -695,7 +813,7 @@ export async function POST(req: Request) {
       // Step E: All 4 fields ready! CHECKING FILTER: Prevent duplicate student vs sibling registration
       const phone = currentCtx.phone;
       const studentName = currentCtx.studentName;
-      const parentName = currentCtx.parentName;
+      const parentName = currentCtx.fatherName || currentCtx.parentName || "";
       const grade = currentCtx.grade;
 
       const existingLeads = await findExistingLeads(phone);
@@ -747,6 +865,7 @@ export async function POST(req: Request) {
         phone,
         grade,
         dob: currentCtx.dob,
+        address: currentCtx.address || "",
         siblingName: isSibling ? siblingRecord.studentName : undefined,
         siblingClass: isSibling ? siblingRecord.grade : undefined,
         notes: isSibling ? `Sibling of ${siblingRecord.studentName} (${siblingRecord.grade})` : trimmedMsg,
@@ -758,17 +877,37 @@ export async function POST(req: Request) {
       currentCtx.stage = "REGISTERED";
       currentCtx.referenceNumber = leadRes.referenceNumber;
 
+      const asksNextStepOrDocs = /aur\s*kuch\s*chahiye|kya\s*chahiye|proces\s*karo|process\s*karo|agla|kya\s*dena\s*hoga|kaise\s*hoga/i.test(lower);
+      const docData = getRequiredDocuments(grade);
+
       if (isHindi) {
+        let reply = `🎉 **${grade} के लिए एडमिशन इंक्वायरी सफलतापूर्वक दर्ज हो गई है!**\n\n`;
+        reply += `• **रेफरेंस नंबर (Ref No):** \`${leadRes.referenceNumber}\`\n`;
+        reply += `• **छात्र का नाम:** ${studentName}\n`;
+        reply += `• **पिता का नाम:** ${currentCtx.fatherName || parentName}\n`;
+        if (currentCtx.motherName) reply += `• **माता का नाम:** ${currentCtx.motherName}\n`;
+        reply += `• **कक्षा:** ${grade}\n`;
+        reply += `• **मोबाइल नंबर:** ${phone}\n`;
+        if (currentCtx.address) reply += `• **क्षेत्र / पता:** ${currentCtx.address}\n`;
+        if (isSibling) reply += `• *(सहोदर रिकॉर्ड से संबद्ध: ${siblingRecord.studentName} - ${siblingRecord.grade})*\n`;
+        reply += `\n**सर्वदा मॉडर्न सेकेंडरी स्कूल** में रुचि दिखाने के लिए धन्यवाद। हमारा एडमिशन विभाग अगले 24 कार्य घंटों में आपसे संपर्क करेगा।\n\n`;
+
+        if (asksNextStepOrDocs) {
+          reply += `📋 **अगला कदम एवं आवश्यक दस्तावेज (Next Steps & Documents):**\n`;
+          reply += `आपने पूछा था *"और कुछ चाहिए तो बताओ"* — जी हाँ, स्कूल वेरिफिकेशन के समय निम्नलिखित दस्तावेज तैयार रखें:\n`;
+          docData.documents.forEach((d, i) => {
+            reply += `${i + 1}. **${d.title}**\n`;
+          });
+          reply += `\n`;
+        }
+
+        reply += `📍 **कैंपस विजिट व दस्तावेज सत्यापन:**\n`;
+        reply += `आप किसी भी कार्य दिवस (सोमवार से शनिवार, प्रातः 8:00 से दोपहर 2:30 बजे) विद्यालय कार्यालय आकर दस्तावेज सत्यापन करवा सकते हैं:\n`;
+        reply += `**A/18 गली नं. 1, सुक्कार बाजार, सादतपर एक्सटेंशन, करावल नगर रोड, नई दिल्ली — 110094**\n`;
+        reply += `हेल्पलाइन: **${SCHOOL_INFO.phoneDisplay}**`;
+
         return NextResponse.json({
-          reply:
-            `🎉 **एडमिशन इंक्वायरी सफलतापूर्वक दर्ज हो गई है!**\n\n` +
-            `• **रेफरेंस नंबर (Ref No):** \`${leadRes.referenceNumber}\`\n` +
-            `• **छात्र का नाम:** ${studentName}\n` +
-            `• **अभिभावक का नाम:** ${parentName}\n` +
-            `• **कक्षा:** ${grade}\n` +
-            `• **मोबाइल नंबर:** ${phone}${isSibling ? `\n• *(सहोदर रिकॉर्ड से संबद्ध: ${siblingRecord.studentName} - ${siblingRecord.grade})*` : ""}\n\n` +
-            `**सर्वदा मॉडर्न सेकेंडरी स्कूल** में रुचि दिखाने के लिए धन्यवाद। हमारा एडमिशन विभाग अगले 24 कार्य घंटों में आपसे संपर्क करेगा।\n\n` +
-            `आप सीधे हमारे कार्यालय में भी फोन कर सकते हैं: **${SCHOOL_INFO.phoneDisplay}** (सोम–शनि, 8:00 AM – 2:30 PM)।`,
+          reply,
           sessionContext: currentCtx,
           suggestedActions: ["एडमिशन फॉर्म डाउनलोड करें (PDF)", "स्कूल का समय व पता", "मुख्य पृष्ठ"],
           executedTools,
@@ -776,16 +915,32 @@ export async function POST(req: Request) {
         });
       }
 
+      let reply = `🎉 **Admission Inquiry Registered Successfully!**\n\n`;
+      reply += `• **Reference Number:** \`${leadRes.referenceNumber}\`\n`;
+      reply += `• **Student Name:** ${studentName}\n`;
+      reply += `• **Father's Name:** ${currentCtx.fatherName || parentName}\n`;
+      if (currentCtx.motherName) reply += `• **Mother's Name:** ${currentCtx.motherName}\n`;
+      reply += `• **Class:** ${grade}\n`;
+      reply += `• **Contact Number:** ${phone}\n`;
+      if (currentCtx.address) reply += `• **Locality / Address:** ${currentCtx.address}\n`;
+      if (isSibling) reply += `• *(Linked to sibling record: ${siblingRecord.studentName} - ${siblingRecord.grade})*\n`;
+      reply += `\nThank you for registering with **Sarvada Modern Secondary School**. Our admissions desk will call you within 24 business hours.\n\n`;
+
+      if (asksNextStepOrDocs) {
+        reply += `📋 **Required Documents for Campus Verification:**\n`;
+        docData.documents.forEach((d, i) => {
+          reply += `${i + 1}. **${d.title}** — ${d.desc}\n`;
+        });
+        reply += `\n`;
+      }
+
+      reply += `📍 **Campus Visit & Verification:**\n`;
+      reply += `You may visit our school admissions counter Monday to Saturday between 8:00 AM – 2:30 PM:\n`;
+      reply += `**A/18 Gali No. 1, Sukkar Bazar, Sadatpur Extn., Karawal Nagar Road, New Delhi — 110094**\n`;
+      reply += `Helpline: **${SCHOOL_INFO.phoneDisplay}**`;
+
       return NextResponse.json({
-        reply:
-          `🎉 **Admission Inquiry Registered Successfully!**\n\n` +
-          `• **Reference Number:** \`${leadRes.referenceNumber}\`\n` +
-          `• **Student Name:** ${studentName}\n` +
-          `• **Parent Name:** ${parentName}\n` +
-          `• **Class:** ${grade}\n` +
-          `• **Contact Number:** ${phone}${isSibling ? `\n• *(Linked to sibling record: ${siblingRecord.studentName} - ${siblingRecord.grade})*` : ""}\n\n` +
-          `Thank you for registering with **Sarvada Modern Secondary School**. Our admissions desk will call you within 24 business hours to assist you with campus interaction and document verification.\n\n` +
-          `You can also reach our office directly at **${SCHOOL_INFO.phoneDisplay}** (Mon–Sat, 8:00 AM – 2:30 PM).`,
+        reply,
         sessionContext: currentCtx,
         suggestedActions: ["Download Admission Form (PDF)", "School Timings & Location", "Track Application Status"],
         executedTools,
@@ -793,72 +948,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // SMART CONTEXT GUARD: If we already have grade + partial data, go straight to COLLECTING_DETAILS
-    // This prevents the bot from showing documents AGAIN when the user already gave their name
-    if (
-      currentCtx.grade &&
-      !currentCtx.referenceNumber &&
-      currentCtx.stage !== "REGISTERED" &&
-      (currentCtx.studentName || currentCtx.parentName || currentCtx.phone)
-    ) {
-      currentCtx.stage = "COLLECTING_DETAILS";
-      // Fall through to the registration state machine (ROUTE 1) above which checks missing fields
-    }
-
-    // JOURNEY ROUTE 1: GRADE-SPECIFIC ADMISSION INQUIRY (e.g. "3rd class", "mujhe 3rd class me addmission lena hai")
-    if (
-      currentCtx.grade &&
-      (lower.includes("admission") ||
-        lower.includes("dakhila") ||
-        lower.includes("chahiye") ||
-        lower.includes("lena") ||
-        lower.includes("form") ||
-        lower.includes("class") ||
-        lower.includes("kaksha") ||
-        lower.trim() === currentCtx.grade.toLowerCase() ||
-        lower.replace(/class\s*/i, "").trim() === currentCtx.grade.replace(/class\s*/i, "").toLowerCase())
-    ) {
-      const grade = currentCtx.grade;
-      const docData = getRequiredDocuments(grade);
-      executedTools.push({ name: "getRequiredDocuments", args: { grade }, result: docData });
-      currentCtx.stage = "DOCUMENTS_REVIEWED";
-
-      if (isHindi) {
-        let reply = `नमस्ते! 🙏 **सर्वदा मॉडर्न सेकेंडरी स्कूल** में **${grade}** में एडमिशन के लिए आपका स्वागत है।\n\n`;
-        reply += `• **सत्र:** 2026-27 एवं 2027-28\n`;
-        reply += `• **कक्षा:** ${grade}\n\n`;
-        reply += `📋 **${grade} के लिए जरूरी दस्तावेज (Documents):**\n`;
-        docData.documents.forEach((d, i) => {
-          reply += `${i + 1}. **${d.title}**\n`;
-        });
-        reply += `\nक्या आप बच्चे का नाम और अपना **10 अंकों का मोबाइल नंबर** बताना चाहेंगे ताकि हमारे एडमिशन विभाग से आपकी बात करवा दी जाए?`;
-
-        return NextResponse.json({
-          reply,
-          sessionContext: currentCtx,
-          suggestedActions: ["हाँ, एडमिशन फॉर्म भरें", "उम्र पात्रता जांचें", "स्कूल का समय व पता"],
-          executedTools,
-        });
-      }
-
-      let reply = `Namaste! 🙏 Welcome to **Sarvada Modern Secondary School** for **${grade}** admissions.\n\n`;
-      reply += `• **Academic Session:** 2026-27 & 2027-28\n`;
-      reply += `• **Class:** ${grade}\n\n`;
-      reply += `📋 **Required Documents for ${grade}:**\n`;
-      docData.documents.forEach((d, i) => {
-        reply += `${i + 1}. **${d.title}** — ${d.desc}\n`;
-      });
-      reply += `\nWould you like to register your admission inquiry now? Please share your child's full name and 10-digit mobile number.`;
-
-      return NextResponse.json({
-        reply,
-        sessionContext: currentCtx,
-        suggestedActions: ["Register Admission Inquiry", "Check Age Eligibility", "School Timings & Location"],
-        executedTools,
-      });
-    }
-
-    // JOURNEY ROUTE 2: AGE ELIGIBILITY CHECK
+    // ROUTE 3: AGE ELIGIBILITY CHECK
     if (
       currentCtx.dob ||
       lower.includes("eligible") ||
@@ -936,7 +1026,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // JOURNEY ROUTE 3: REQUIRED DOCUMENTS
+    // ROUTE 4: REQUIRED DOCUMENTS
     if (
       lower.includes("document") ||
       lower.includes("kya chahiye") ||
@@ -991,7 +1081,54 @@ export async function POST(req: Request) {
       });
     }
 
-    // JOURNEY ROUTE 5: 100-POINT PRE-SCHOOL CRITERIA
+    // ROUTE 5: FEES & FEE STRUCTURE
+    if (isAskingFees) {
+      if (isHindi) {
+        let reply = `💰 **सर्वदा मॉडर्न सेकेंडरी स्कूल — फीस संरचना (Fee Structure):**\n\n`;
+        reply += `हमारा विद्यालय दिल्ली शिक्षा निदेशालय (DOE) एवं CBSE के दिशा-निर्देशों के अनुरूप अत्यंत किफायती एवं पारदर्शी शुल्क संरचना प्रदान करता है:\n\n`;
+        reply += `• **प्री-प्राइमरी (Nursery, LKG, UKG):** बुनियादी विकास, एक्टिविटी-आधारित लर्निंग व स्मार्ट क्लासरूम।\n`;
+        reply += `• **प्राइमरी (Class 1st से 5th):** संपूर्ण शैक्षणिक पाठ्यक्रम, कंप्यूटर लैब व खेलकूद गतिविधियां।\n`;
+        reply += `• **मिडिल व सेकेंडरी (Class 6th से 10th):** CBSE बोर्ड तैयारी, साइंस लैब, डिजिटल स्मार्ट क्लासरूम व एक्स्ट्रा-करिकुलर।\n\n`;
+        reply += `💡 **विशेष रियायतें (Concessions):**\n`;
+        reply += `• सगे भाई/बहन (Sibling Concession) के लिए विशेष छूट उपलब्ध है।\n`;
+        reply += `• मेधावी छात्रों के लिए मेरिट सहायता।\n\n`;
+        if (currentCtx.grade) {
+          reply += `**${currentCtx.grade}** के सटीक शुल्क विवरण के लिए आप विद्यालय कार्यालय आ सकते हैं या अपना नाम व मोबाइल नंबर बताएं ताकि एडमिशन टीम आपको विवरण प्रदान कर सके।`;
+        } else {
+          reply += `सटीक कक्षा-वार शुल्क विवरण के लिए कृपया बताएं कि आप **किस कक्षा** की फीस जानना चाहते हैं?`;
+        }
+
+        return NextResponse.json({
+          reply,
+          sessionContext: currentCtx,
+          suggestedActions: ["आवश्यक दस्तावेज", "एडमिशन इंक्वायरी दर्ज करें", "स्कूल का समय व पता"],
+          executedTools,
+        });
+      }
+
+      let reply = `💰 **Sarvada Modern Secondary School — Fee Structure:**\n\n`;
+      reply += `Our school maintains an affordable and transparent fee structure in full compliance with Directorate of Education (DOE) Delhi guidelines:\n\n`;
+      reply += `• **Pre-Primary (Nursery, LKG, UKG):** Foundation learning, smart classrooms, activities.\n`;
+      reply += `• **Primary (Class 1st to 5th):** Core CBSE curriculum, computer lab, sports & creative arts.\n`;
+      reply += `• **Middle & Secondary (Class 6th to 10th):** Science lab, CBSE board prep, interactive smart boards.\n\n`;
+      reply += `💡 **Concessions & Support:**\n`;
+      reply += `• Sibling concession available for brothers/sisters enrolled concurrently.\n`;
+      reply += `• Academic merit support.\n\n`;
+      if (currentCtx.grade) {
+        reply += `For the exact fee breakdown for **${currentCtx.grade}**, please share your contact number or visit our school accounts counter (Mon–Sat, 8:00 AM – 2:30 PM).`;
+      } else {
+        reply += `Please let me know which **Class** you are inquiring about for the exact breakdown.`;
+      }
+
+      return NextResponse.json({
+        reply,
+        sessionContext: currentCtx,
+        suggestedActions: ["Required Documents", "Register Inquiry", "Office Timings & Location"],
+        executedTools,
+      });
+    }
+
+    // ROUTE 6: 100-POINT PRE-SCHOOL CRITERIA
     if (
       lower.includes("point") ||
       lower.includes("distance") ||
@@ -1029,7 +1166,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // JOURNEY ROUTE 6: STATUS CHECK
+    // ROUTE 7: STATUS CHECK
     if (lower.includes("status") || lower.includes("track") || lower.includes("sms-adm")) {
       const refMatch = trimmedMsg.match(/SMS-ADM-\d{4}-\d+/i);
       const queryParam = refMatch ? refMatch[0] : "";
@@ -1076,7 +1213,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // JOURNEY ROUTE 7: CAMPUS, TIMINGS, CONTACT
+    // ROUTE 8: CAMPUS, TIMINGS, CONTACT
     if (
       lower.includes("time") ||
       lower.includes("timing") ||
@@ -1117,45 +1254,58 @@ export async function POST(req: Request) {
       });
     }
 
-    // SMART DEFAULT: If we have partial context, ask for next missing field
-    if (currentCtx.grade && (currentCtx.studentName || currentCtx.parentName || currentCtx.dob)) {
+    // ANTI-AMNESIA GUARD: If partial context exists, NEVER show generic welcome greeting!
+    if (currentCtx.grade || currentCtx.studentName || currentCtx.phone || currentCtx.parentName || currentCtx.fatherName) {
       currentCtx.stage = "COLLECTING_DETAILS";
 
+      if (isHindi) {
+        let ack = `नमस्ते! 🙏 **सर्वदा मॉडर्न सेकेंडरी स्कूल** में `;
+        if (currentCtx.grade) ack += `**${currentCtx.grade}** `;
+        if (currentCtx.studentName) ack += `छात्र **${currentCtx.studentName}** `;
+        ack += `के एडमिशन संदर्भ में:\n\n`;
+
+        if (!currentCtx.studentName) {
+          ack += `कृपया **छात्र / छात्रा का पूरा नाम (Student's Full Name)** बताएं:`;
+        } else if (!currentCtx.parentName && !currentCtx.fatherName) {
+          ack += `कृपया **पिता या माता का नाम (Father's or Mother's Name)** बताएं:`;
+        } else if (!currentCtx.phone || !/^[6-9]\d{9}$/.test(currentCtx.phone)) {
+          ack += `कृपया अपना **10 अंकों का मोबाइल नंबर** दर्ज करें:`;
+        } else {
+          ack += `क्या आप फॉर्म सबमिट कर अपना एडमिशन रेफरेंस नंबर जारी करवाना चाहते हैं?`;
+        }
+
+        return NextResponse.json({
+          reply: ack,
+          sessionContext: currentCtx,
+          suggestedActions: ["हाँ, फॉर्म पूरा करें", "आवश्यक दस्तावेज", "स्कूल का समय व पता"],
+          executedTools,
+        });
+      }
+
+      let ack = `Namaste! 🙏 Regarding admission `;
+      if (currentCtx.grade) ack += `for **${currentCtx.grade}** `;
+      if (currentCtx.studentName) ack += `for student **${currentCtx.studentName}** `;
+      ack += `at **Sarvada Modern Secondary School**:\n\n`;
+
       if (!currentCtx.studentName) {
-        return NextResponse.json({
-          reply: isHindi
-            ? `**सर्वदा मॉडर्न सेकेंडरी स्कूल** में **${currentCtx.grade}** के लिए दाखिला पंजीकरण:\n\n1. कृपया **छात्र / छात्रा का पूरा नाम (Student's Full Name)** बताएं:`
-            : `Admission registration for **${currentCtx.grade}** at **Sarvada Modern Secondary School**:\n\n1. Please provide the **Student's Full Name**:`,
-          sessionContext: currentCtx,
-          suggestedActions: isHindi ? ["छात्र का नाम दर्ज करें"] : ["Enter Student Name"],
-          executedTools,
-        });
+        ack += `Please share the **Student's Full Name**:`;
+      } else if (!currentCtx.parentName && !currentCtx.fatherName) {
+        ack += `Please share the **Father's or Mother's Full Name**:`;
+      } else if (!currentCtx.phone || !/^[6-9]\d{9}$/.test(currentCtx.phone)) {
+        ack += `Please provide your **10-digit Mobile Number**:`;
+      } else {
+        ack += `Would you like to finalize and submit your admission registration?`;
       }
 
-      if (!currentCtx.parentName) {
-        return NextResponse.json({
-          reply: isHindi
-            ? `छात्र का नाम नोट किया गया: **${currentCtx.studentName}**।\n\n2. अब कृपया **पिता का पूरा नाम (Father's Full Name)** बताएं:`
-            : `Noted student name: **${currentCtx.studentName}**.\n\n2. Please provide the **Father's Full Name**:`,
-          sessionContext: currentCtx,
-          suggestedActions: isHindi ? ["अभिभावक का नाम लिखें"] : ["Enter Parent Name"],
-          executedTools,
-        });
-      }
-
-      if (!currentCtx.phone || !/^[6-9]\d{9}$/.test(currentCtx.phone)) {
-        return NextResponse.json({
-          reply: isHindi
-            ? `छात्र: **${currentCtx.studentName}** | अभिभावक: **${currentCtx.parentName}**\n\n3. कृपया अपना **10 अंकों का मोबाइल नंबर** दर्ज करें:`
-            : `Student: **${currentCtx.studentName}** | Parent: **${currentCtx.parentName}**\n\n3. Please enter your **10-digit Mobile Number**:`,
-          sessionContext: currentCtx,
-          suggestedActions: isHindi ? ["10 अंकों का मोबाइल नंबर दर्ज करें"] : ["Enter 10-digit Mobile Number"],
-          executedTools,
-        });
-      }
+      return NextResponse.json({
+        reply: ack,
+        sessionContext: currentCtx,
+        suggestedActions: ["Submit Inquiry", "Required Documents", "Timings & Location"],
+        executedTools,
+      });
     }
 
-    // DEFAULT ROUTE: CLEAN & WELCOMING (BILINGUAL)
+    // DEFAULT ROUTE: CLEAN & WELCOMING (BILINGUAL) — ONLY WHEN CONTEXT IS COMPLETELY EMPTY
     if (isHindi) {
       return NextResponse.json({
         reply:
