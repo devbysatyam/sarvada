@@ -240,6 +240,8 @@ export function calculatePoints(criteria: {
 export interface LeadSubmissionData {
   studentName: string;
   parentName: string;
+  fatherName?: string;
+  motherName?: string;
   phone: string;
   grade: string;
   dob?: string;
@@ -266,6 +268,8 @@ export async function submitAdmissionLead(data: LeadSubmissionData) {
       referenceNumber,
       studentName: data.studentName.trim(),
       parentName: data.parentName.trim(),
+      fatherName: (data.fatherName || data.parentName || "").trim(),
+      motherName: (data.motherName || "").trim(),
       phone: data.phone.trim(),
       grade: data.grade.trim(),
       dob: data.dob || "",
@@ -289,7 +293,7 @@ export async function submitAdmissionLead(data: LeadSubmissionData) {
     try {
       await ensureAuth();
       const firestoreTimeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Firestore write timed out")), 4000)
+        setTimeout(() => reject(new Error("Firestore write timed out")), 10000)
       );
       const docRef = await Promise.race([
         addDoc(collection(db, "admissions_leads"), leadPayload),
@@ -324,6 +328,9 @@ export async function submitAdmissionLead(data: LeadSubmissionData) {
       skool24Result = await pushEnquiryToSkool24({
         studentName: leadPayload.studentName,
         parentName: leadPayload.parentName,
+        fatherName: (data.fatherName || leadPayload.parentName),
+        motherName: (data.motherName || ""),
+        aadhaarNumber: (data as any).aadhaar || "",
         phone: leadPayload.phone,
         grade: leadPayload.grade,
         dob: leadPayload.dob,

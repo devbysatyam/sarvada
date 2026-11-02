@@ -126,7 +126,7 @@ export function resolveSkool24ClassId(gradeInput?: string): number {
  * Normalizes Date of Birth to YYYY-MM-DD
  */
 function normalizeDOB(raw?: string): string {
-  if (!raw) return "2020-04-12";
+  if (!raw || !raw.trim()) return "";
   const cleaned = raw.trim().replace(/\//g, "-");
   const parts = cleaned.split("-");
   // If DD-MM-YYYY
@@ -148,17 +148,18 @@ export async function pushEnquiryToSkool24(
     const fatherName = (
       lead.fatherName?.trim() ||
       lead.parentName?.trim() ||
-      "Parent Guardian"
+      ""
     ).replace(/[^a-zA-Z ]/g, "").slice(0, 50);
-    const motherName = (lead.motherName?.trim() || "Mother").replace(/[^a-zA-Z ]/g, "").slice(0, 50);
+    const motherName = (lead.motherName?.trim() || "").replace(/[^a-zA-Z ]/g, "").slice(0, 50);
     const cleanPhone = (lead.phone || "").replace(/\D/g, "").slice(-10) || "9999439422";
     const dob = normalizeDOB(lead.dob);
     const classId = resolveSkool24ClassId(lead.grade);
     const gender = lead.gender?.toLowerCase().includes("f") ? "Female" : "Male";
     const address = (
-      lead.address?.trim() || "Sadatpur Extn, Karawal Nagar, Delhi - 110090"
+      lead.address?.trim() || ""
     ).slice(0, 190);
-    const aadhaar = (lead.aadhaarNumber || "").replace(/\D/g, "").slice(0, 12).padStart(12, "0");
+    const cleanAadhaar = (lead.aadhaarNumber || "").replace(/\D/g, "").slice(0, 12);
+    const aadhaar = cleanAadhaar.length >= 4 ? cleanAadhaar : "";
 
     const payload = {
       login_school_id: SKOOL24_SCHOOL_ID,
@@ -175,8 +176,8 @@ export async function pushEnquiryToSkool24(
         gender: gender,
         email_id: lead.email?.trim() || "enquiry@sarvadamodernschool.com",
         status: "pending",
-        previous_school_name: (lead.previousSchool?.trim() || "Sarvada School").slice(0, 50),
-        previous_class: (lead.previousClass?.trim() || "N/A").slice(0, 10),
+        previous_school_name: (lead.previousSchool?.trim() || "").slice(0, 50),
+        previous_class: (lead.previousClass?.trim() || "").slice(0, 10),
         address: address,
         father_mobile_no: cleanPhone,
         mother_mobile_no: cleanPhone,

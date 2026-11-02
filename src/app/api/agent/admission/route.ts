@@ -44,7 +44,8 @@ CURRENT PARENT JOURNEY STATE:
 • Age Calculated: ${ctx.calculatedAge || "N/A"}
 • Eligibility: ${ctx.isEligible === true ? "Eligible" : ctx.isEligible === false ? "Not Eligible" : "Pending"}
 • Student Name: ${ctx.studentName || "Not specified"}
-• Parent Name: ${ctx.parentName || "Not specified"}
+• Parent/Father Name: ${ctx.parentName || ctx.fatherName || "Not specified"}
+• Mother Name: ${ctx.motherName || "Not specified"}
 • Mobile Number: ${ctx.phone || "Not specified"}
 • Reference Number: ${ctx.referenceNumber || "None"}
 
@@ -187,14 +188,19 @@ function isHindiOrHinglish(text: string): boolean {
   return devanagari.test(text) || hinglishWords.test(text);
 }
 
-function cleanName(raw: string): string {
-  return raw
-    .replace(/(?:\bstudent\b|\bchild\b|\bbacche\b|\bbachhe\b|\bka\b|\bki\b|\bke\b|\bnaam\b|\bname\b|\bis\b|\bhai\b|\bmera\b|\bmeri\b|\bbeta\b|\bbeti\b|\bfather\b|\bmother\b|\bparent\b|\bpapa\b|\bmummy\b|\bpita\b|\bmata\b)\s*:?/gi, "")
-    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "")
+// Helper to sanitize extracted name strings — removes noise words and punctuation
+function cleanExtractedName(str: string): string {
+  if (!str) return "";
+  return str
+    .replace(/\b(?:student|child|ba[ch]{1,5}[eaio]?|beta|beti|name|naam|is|hai|hain|ka|ki|ke|ko|se|mera|meri|mere|shri|smt|mr|mrs|dr|and|aur|date\s*of\s*birth|dob|class|grade|admission|dakhila|father|mother|parent|pita|mata|papa|mummy|of)\b/gi, " ")
+    .replace(/[0-9:,.\/#!$%^&*;:{}=\-_`~()]/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
-// Helper to extract entities from user input to maintain journey state
+// ─────────────────────────────────────────────────────────────
+// ROBUST ENTITY EXTRACTION — handles compound Hindi/English
+// ─────────────────────────────────────────────────────────────
 function extractEntities(text: string, currentCtx: AdmissionJourneyContext): Partial<AdmissionJourneyContext> {
   const updates: Partial<AdmissionJourneyContext> = {};
 
@@ -202,7 +208,7 @@ function extractEntities(text: string, currentCtx: AdmissionJourneyContext): Par
     updates.language = "hi";
   }
 
-  // 1. Comprehensive Grade extraction (English, Hindi, Ordinals, Words)
+  // ── 1. Grade extraction ──────────────────────────────────
   if (/nursery|pre-school|kg-1|नर्सरी/i.test(text)) {
     updates.grade = "Nursery";
   } else if (/\blkg\b|l\.k\.g|एलकेजी/i.test(text)) {
@@ -212,79 +218,146 @@ function extractEntities(text: string, currentCtx: AdmissionJourneyContext): Par
   } else if (/\b(?:class\s*1(?:st)?|1st\s*(?:class)?|first\s*class|कक्षा\s*1|पहली\s*कक्षा)\b/i.test(text)) {
     updates.grade = "Class 1st";
   } else {
-    // Match 2nd to 9th in any format: "3rd class", "3rd", "class 3", "3 class", "कक्षा 3", "तीसरी"
     const gradeMatch = text.match(/\b(?:class\s*([2-9])(?:nd|rd|th)?|([2-9])(?:nd|rd|th)\s*(?:class)?|([2-9])\s*class|कक्षा\s*([2-9])|([2-9])\s*वीं)\b/i);
     if (gradeMatch) {
       const gNum = parseInt(gradeMatch[1] || gradeMatch[2] || gradeMatch[3] || gradeMatch[4] || gradeMatch[5], 10);
       const suffix = gNum === 2 ? "nd" : gNum === 3 ? "rd" : "th";
       updates.grade = `Class ${gNum}${suffix}`;
-    } else if (/\b(?:2nd|second)\b|दूसरी|doosri/i.test(text)) {
-      updates.grade = "Class 2nd";
-    } else if (/\b(?:3rd|third)\b|तीसरी|teesri/i.test(text)) {
-      updates.grade = "Class 3rd";
-    } else if (/\b(?:4th|fourth)\b|चौथी|chauthi/i.test(text)) {
-      updates.grade = "Class 4th";
-    } else if (/\b(?:5th|fifth)\b|पांचवीं|panchvi/i.test(text)) {
-      updates.grade = "Class 5th";
-    } else if (/\b(?:6th|sixth)\b|छठी|chhati/i.test(text)) {
-      updates.grade = "Class 6th";
-    } else if (/\b(?:7th|seventh)\b|सातवीं|saatvi/i.test(text)) {
-      updates.grade = "Class 7th";
-    } else if (/\b(?:8th|eighth)\b|आठवीं|aathvi/i.test(text)) {
-      updates.grade = "Class 8th";
-    } else if (/\b(?:9th|ninth)\b|नौवीं|nauvi/i.test(text)) {
-      updates.grade = "Class 9th";
-    }
-  }
-
-  // 2. DOB extraction
-  const dateMatch = text.match(/(\d{4}[-/]\d{1,2}[-/]\d{1,2})|(\d{1,2}[-/]\d{1,2}[-/]\d{4})/);
-  if (dateMatch) {
-    const rawDate = dateMatch[0].replace(/\//g, "-");
-    const parts = rawDate.split("-");
-    if (parts[0].length === 2 && parts[2].length === 4) {
-      updates.dob = `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
     } else {
-      updates.dob = rawDate;
+      const wordMap: Record<string, string> = {
+        "2nd": "Class 2nd", second: "Class 2nd", "दूसरी": "Class 2nd", doosri: "Class 2nd", dusri: "Class 2nd",
+        "3rd": "Class 3rd", third: "Class 3rd", "तीसरी": "Class 3rd", teesri: "Class 3rd",
+        "4th": "Class 4th", fourth: "Class 4th", "चौथी": "Class 4th", chauthi: "Class 4th",
+        "5th": "Class 5th", fifth: "Class 5th", "पांचवीं": "Class 5th", panchvi: "Class 5th",
+        "6th": "Class 6th", sixth: "Class 6th", "छठी": "Class 6th", chhati: "Class 6th",
+        "7th": "Class 7th", seventh: "Class 7th", "सातवीं": "Class 7th", saatvi: "Class 7th",
+        "8th": "Class 8th", eighth: "Class 8th", "आठवीं": "Class 8th", aathvi: "Class 8th",
+        "9th": "Class 9th", ninth: "Class 9th", "नौवीं": "Class 9th", nauvi: "Class 9th",
+      };
+      for (const [kw, cls] of Object.entries(wordMap)) {
+        if (new RegExp(`\\b${kw}\\b`, "i").test(text)) {
+          updates.grade = cls;
+          break;
+        }
+      }
     }
   }
 
-  // 3. Phone number extraction (handles spaces, dashes, +91)
-  const cleanDigits = text.replace(/[\s\-\(\)\+]/g, "");
-  const phoneMatch = cleanDigits.match(/(?:91)?[6-9]\d{9}/);
-  if (phoneMatch) {
-    const p = phoneMatch[0];
-    updates.phone = p.length === 12 && p.startsWith("91") ? p.slice(2) : p;
+  // ── 2. DOB extraction ────────────────────────────────────
+  const dateMatch = text.match(/\b(\d{1,2})[-/](\d{1,2})[-/](\d{4})\b/) || text.match(/\b(\d{4})[-/](\d{1,2})[-/](\d{1,2})\b/);
+  if (dateMatch) {
+    if (dateMatch[1].length === 4) {
+      updates.dob = dateMatch[0].replace(/\//g, "-");
+    } else {
+      const day = dateMatch[1].padStart(2, "0");
+      const month = dateMatch[2].padStart(2, "0");
+      const year = dateMatch[3];
+      updates.dob = `${year}-${month}-${day}`;
+    }
   }
 
-  // 4. Reference Number extraction (e.g. SMS-ADM-2026-1234)
+  // ── 3. Phone number extraction ───────────────────────────
+  const cleanDigits = text.replace(/[\s\-\(\)\+]/g, "");
+  const phoneMatch = cleanDigits.match(/(?:(?:0|91)?)([6-9]\d{9})\b/);
+  if (phoneMatch) {
+    updates.phone = phoneMatch[1];
+  }
+
+  // ── 4. Reference Number ──────────────────────────────────
   const refMatch = text.match(/\bSMS-ADM-\d{4}-\d{4,5}\b/i);
   if (refMatch) {
     updates.referenceNumber = refMatch[0].toUpperCase();
   }
 
-  // 5. Explicit Name extraction
-  const studentMatch = text.match(/(?:\bchild\b|\bstudent\b|\bdaughter\b|\bson\b|\bbacche\b|\bbachhe\b|\bnaam\b|\bname\b)\s*(?:is|ka naam|:)?\s*([A-Za-z\s]{2,35})(?:,|\.|\n|and|parent|father|mother|$)/i);
-  if (studentMatch && !studentMatch[1].toLowerCase().includes("sarvada") && !studentMatch[1].toLowerCase().includes("class")) {
-    const sName = cleanName(studentMatch[1]);
-    if (sName.length >= 2) updates.studentName = sName;
+  // Flexible pattern for "bacche/bachhe/baccche/bache" variations
+  const bacchePattern = "(?:ba[ch]{1,5}[eaio]?)";
+
+  // ── 5. Father / Mother / Parent Name ─────────────────────
+  const fatherRegex = new RegExp(
+    "(?:\\bfather(?:\\s*(?:name|ka\\s*naam))?|\\bpapa(?:\\s*ka\\s*naam)?|\\bpita(?:\\s*ka\\s*naam)?|\\bparent(?:\\s*name)?)\\s*[:=-]?\\s*([A-Za-z\\s]{2,35})" +
+    "(?=(?:\\b(?:and|aur|mother|mata|mummy|dob|date\\s*of\\s*birth|phone|mobile|student|child|" + bacchePattern + "|class)\\b|$|[0-9]{4,}))",
+    "i"
+  );
+  const fMatch = text.match(fatherRegex);
+  if (fMatch) {
+    const fn = cleanExtractedName(fMatch[1]);
+    if (fn.length >= 2) {
+      updates.parentName = fn;
+      updates.fatherName = fn;
+    }
   }
 
-  const parentMatch = text.match(/(?:\bparent\b|\bfather\b|\bmother\b|\bpita\b|\bmata\b|\bpapa\b|\bmummy\b)\s*(?:is|ka naam|:)?\s*([A-Za-z\s]{2,35})(?:,|\.|\n|phone|mobile|$)/i);
-  if (parentMatch) {
-    const pName = cleanName(parentMatch[1]);
-    if (pName.length >= 2) updates.parentName = pName;
+  const motherRegex = new RegExp(
+    "(?:\\bmother(?:\\s*(?:name|ka\\s*naam))?|\\bmata(?:\\s*ka\\s*naam)?|\\bmummy(?:\\s*ka\\s*naam)?)\\s*[:=-]?\\s*([A-Za-z\\s]{2,35})" +
+    "(?=(?:\\b(?:and|aur|father|papa|pita|dob|date\\s*of\\s*birth|phone|mobile|student|child|" + bacchePattern + "|class)\\b|$|[0-9]{4,}))",
+    "i"
+  );
+  const mMatch = text.match(motherRegex);
+  if (mMatch) {
+    const mn = cleanExtractedName(mMatch[1]);
+    if (mn.length >= 2) {
+      updates.motherName = mn;
+    }
   }
 
-  // 6. Conversational / Sequential Name extraction during COLLECTING_DETAILS
-  if (currentCtx.stage === "COLLECTING_DETAILS" && !phoneMatch && !refMatch) {
+  // ── 6. Student / Child Name ──────────────────────────────
+  // Pattern A (forward label): "name of student Satyam Mishra" or "bacche ka naam Satyam" or "mera beta Aarav"
+  const studentForwardRegex = new RegExp(
+    "(?:\\b(?:name\\s*of\\s*student|student\\s*(?:name)?|child(?:\\s*name)?|name\\s*of\\s*child|" + bacchePattern + "(?:\\s*ka)?\\s*naam|beta(?:\\s*ka)?\\s*naam|beti(?:\\s*ka)?\\s*naam|chhatra(?:\\s*ka)?\\s*naam|mera\\s+beta|meri\\s+beti))\\s*[:=-]?\\s*([A-Za-z\\s]{2,35})" +
+    "(?=(?:\\b(?:and|aur|father|papa|pita|mother|mata|mummy|dob|date\\s*of\\s*birth|phone|mobile|class|grade|admission)\\b|$|[0-9]{4,}))",
+    "i"
+  );
+  const sfMatch = text.match(studentForwardRegex);
+  if (sfMatch) {
+    const sn = cleanExtractedName(sfMatch[1]);
+    if (sn.length >= 2 && !sn.toLowerCase().includes("sarvada")) {
+      updates.studentName = sn;
+    }
+  }
+
+  // Pattern B (backward label): "SATYAM MISHRA BACCCHE KA NAAM"
+  if (!updates.studentName) {
+    const studentBackwardRegex = new RegExp(
+      "([A-Za-z\\s]{2,35})\\s+(?:" + bacchePattern + "(?:\\s*ka)?\\s*naam|student\\s*(?:ka\\s*)?name|child\\s*(?:ka\\s*)?name|beta\\s*ka\\s*naam|beti\\s*ka\\s*naam|chhatra\\s*ka\\s*naam)\\b",
+      "i"
+    );
+    const sbMatch = text.match(studentBackwardRegex);
+    if (sbMatch) {
+      const sn = cleanExtractedName(sbMatch[1]);
+      if (sn.length >= 2 && !sn.toLowerCase().includes("sarvada")) {
+        updates.studentName = sn;
+      }
+    }
+  }
+
+  // Pattern C: Generic "naam X" / "name X"
+  if (!updates.studentName && !updates.parentName) {
+    const genericNameRegex = /(?:\bname\b|\bnaam\b)\s*[:=-]?\s*([A-Za-z\s]{2,35})(?=(?:\b(?:and|aur|dob|date\s*of\s*birth|phone|mobile|class)\b|$|[0-9]{4,}))/i;
+    const gMatch = text.match(genericNameRegex);
+    if (gMatch) {
+      const gn = cleanExtractedName(gMatch[1]);
+      if (gn.length >= 2 && !gn.toLowerCase().includes("sarvada")) {
+        if (!currentCtx.studentName) updates.studentName = gn;
+        else if (!currentCtx.parentName) updates.parentName = gn;
+      }
+    }
+  }
+
+  // ── 7. Conversational / Standalone name during COLLECTING_DETAILS ──
+  if (!updates.studentName && !updates.parentName && !phoneMatch && !refMatch) {
     const trimmed = text.trim();
-    const isCommand = /admission|eligib|docu|fee|timing|address|school|nursery|lkg|ukg|class|hello|hi|namaste/i.test(trimmed);
-    if (!isCommand && trimmed.length >= 2 && trimmed.length <= 40 && !/^\d+$/.test(trimmed)) {
-      if (!currentCtx.studentName) {
-        updates.studentName = cleanName(trimmed);
-      } else if (currentCtx.studentName && !currentCtx.parentName) {
-        updates.parentName = cleanName(trimmed);
+    const isCommand = /admission|eligib|docu|fee|timing|address|school|nursery|lkg|ukg|class|hello|hi|namaste|yes|no|haan|nahi/i.test(trimmed);
+    const words = trimmed.split(/\s+/);
+    if (!isCommand && words.length >= 1 && words.length <= 4 && !/^\d+$/.test(trimmed) && trimmed.length >= 2 && trimmed.length <= 50) {
+      const candidate = cleanExtractedName(trimmed);
+      if (candidate.length >= 2 && !candidate.toLowerCase().includes("sarvada")) {
+        if (currentCtx.stage === "COLLECTING_DETAILS") {
+          if (!currentCtx.studentName) {
+            updates.studentName = candidate;
+          } else if (!currentCtx.parentName) {
+            updates.parentName = candidate;
+          }
+        }
       }
     }
   }
@@ -336,6 +409,9 @@ export async function POST(req: Request) {
       isEligible: incomingCtx.isEligible,
       studentName: incomingCtx.studentName,
       parentName: incomingCtx.parentName,
+      fatherName: incomingCtx.fatherName,
+      motherName: incomingCtx.motherName,
+      address: incomingCtx.address,
       phone: incomingCtx.phone,
       referenceNumber: incomingCtx.referenceNumber,
       distanceKm: incomingCtx.distanceKm,
@@ -666,6 +742,8 @@ export async function POST(req: Request) {
       const leadRes = await submitAdmissionLead({
         studentName,
         parentName,
+        fatherName: currentCtx.fatherName || parentName,
+        motherName: currentCtx.motherName || "",
         phone,
         grade,
         dob: currentCtx.dob,
@@ -713,6 +791,18 @@ export async function POST(req: Request) {
         executedTools,
         referenceNumber: leadRes.referenceNumber,
       });
+    }
+
+    // SMART CONTEXT GUARD: If we already have grade + partial data, go straight to COLLECTING_DETAILS
+    // This prevents the bot from showing documents AGAIN when the user already gave their name
+    if (
+      currentCtx.grade &&
+      !currentCtx.referenceNumber &&
+      currentCtx.stage !== "REGISTERED" &&
+      (currentCtx.studentName || currentCtx.parentName || currentCtx.phone)
+    ) {
+      currentCtx.stage = "COLLECTING_DETAILS";
+      // Fall through to the registration state machine (ROUTE 1) above which checks missing fields
     }
 
     // JOURNEY ROUTE 1: GRADE-SPECIFIC ADMISSION INQUIRY (e.g. "3rd class", "mujhe 3rd class me addmission lena hai")
@@ -1025,6 +1115,44 @@ export async function POST(req: Request) {
         suggestedActions: ["Check Age Eligibility", "What documents are required?", "Register Admission Inquiry"],
         executedTools,
       });
+    }
+
+    // SMART DEFAULT: If we have partial context, ask for next missing field
+    if (currentCtx.grade && (currentCtx.studentName || currentCtx.parentName || currentCtx.dob)) {
+      currentCtx.stage = "COLLECTING_DETAILS";
+
+      if (!currentCtx.studentName) {
+        return NextResponse.json({
+          reply: isHindi
+            ? `**सर्वदा मॉडर्न सेकेंडरी स्कूल** में **${currentCtx.grade}** के लिए दाखिला पंजीकरण:\n\n1. कृपया **छात्र / छात्रा का पूरा नाम (Student's Full Name)** बताएं:`
+            : `Admission registration for **${currentCtx.grade}** at **Sarvada Modern Secondary School**:\n\n1. Please provide the **Student's Full Name**:`,
+          sessionContext: currentCtx,
+          suggestedActions: isHindi ? ["छात्र का नाम दर्ज करें"] : ["Enter Student Name"],
+          executedTools,
+        });
+      }
+
+      if (!currentCtx.parentName) {
+        return NextResponse.json({
+          reply: isHindi
+            ? `छात्र का नाम नोट किया गया: **${currentCtx.studentName}**।\n\n2. अब कृपया **पिता का पूरा नाम (Father's Full Name)** बताएं:`
+            : `Noted student name: **${currentCtx.studentName}**.\n\n2. Please provide the **Father's Full Name**:`,
+          sessionContext: currentCtx,
+          suggestedActions: isHindi ? ["अभिभावक का नाम लिखें"] : ["Enter Parent Name"],
+          executedTools,
+        });
+      }
+
+      if (!currentCtx.phone || !/^[6-9]\d{9}$/.test(currentCtx.phone)) {
+        return NextResponse.json({
+          reply: isHindi
+            ? `छात्र: **${currentCtx.studentName}** | अभिभावक: **${currentCtx.parentName}**\n\n3. कृपया अपना **10 अंकों का मोबाइल नंबर** दर्ज करें:`
+            : `Student: **${currentCtx.studentName}** | Parent: **${currentCtx.parentName}**\n\n3. Please enter your **10-digit Mobile Number**:`,
+          sessionContext: currentCtx,
+          suggestedActions: isHindi ? ["10 अंकों का मोबाइल नंबर दर्ज करें"] : ["Enter 10-digit Mobile Number"],
+          executedTools,
+        });
+      }
     }
 
     // DEFAULT ROUTE: CLEAN & WELCOMING (BILINGUAL)

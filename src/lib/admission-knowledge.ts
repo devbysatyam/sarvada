@@ -110,6 +110,9 @@ export interface AdmissionJourneyContext {
   isEligible?: boolean;
   studentName?: string;
   parentName?: string;
+  fatherName?: string;
+  motherName?: string;
+  address?: string;
   phone?: string;
   referenceNumber?: string;
   distanceKm?: number;
