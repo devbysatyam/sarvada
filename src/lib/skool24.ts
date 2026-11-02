@@ -187,7 +187,7 @@ export async function pushEnquiryToSkool24(
     };
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 7000);
+    const timeout = setTimeout(() => controller.abort(), 3500);
 
     const response = await fetch(SKOOL24_API_URL, {
       method: "POST",

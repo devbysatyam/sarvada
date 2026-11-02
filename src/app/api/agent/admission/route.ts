@@ -455,8 +455,8 @@ export async function POST(req: Request) {
     // ─────────────────────────────────────────────────────────────
     // 1. GEMINI LIVE MODEL WITH TOOL CALLING & FALLBACK LIST
     // ─────────────────────────────────────────────────────────────
-    if (apiKey && apiKey.length > 10) {
-      const candidateModels = ["gemini-3.5-flash-lite", "gemini-3.8-flash"];
+    if (apiKey && apiKey.length > 20 && (apiKey.startsWith("AIzaSy") || !apiKey.startsWith("AQ."))) {
+      const candidateModels = ["gemini-1.5-flash"];
       for (const modelName of candidateModels) {
         try {
           const ai = new GoogleGenAI({ apiKey });
@@ -473,7 +473,7 @@ export async function POST(req: Request) {
             parts: [{ text: trimmedMsg }],
           });
 
-          const withTimeout = <T>(promise: Promise<T>, ms: number = 7000): Promise<T> =>
+          const withTimeout = <T>(promise: Promise<T>, ms: number = 3500): Promise<T> =>
             Promise.race([
               promise,
               new Promise<T>((_, reject) =>
